@@ -3,7 +3,7 @@
    Todo o progresso fica no navegador (localStorage), com backup exportável. */
 (() => {
   "use strict";
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const KEY = "rumo_b2_tdie";
   const TARGET = 86;              // B2 começa em 86 pontos (ICA 37-324, 4.2.3)
   const MASTERY = 0.75;           // tópico considerado dominado
