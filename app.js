@@ -3,7 +3,7 @@
    Todo o progresso fica no navegador (localStorage), com backup exportável. */
 (() => {
   "use strict";
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
   const KEY = "rumo_b2_tdie";
   const TARGET = 86;              // B2 começa em 86 pontos (ICA 37-324, 4.2.3)
   const MASTERY = 0.75;           // tópico considerado dominado
@@ -41,6 +41,8 @@
   }
   let db = loadDB();
   function save() {
+    const cur = db.current && db.profiles[db.current];
+    if (cur && cur.placement) { cur.hist = cur.hist || {}; cur.hist[today()] = estScore(cur); }
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
     catch { toast("Não consegui salvar no navegador. Faça um backup."); }
   }
@@ -228,13 +230,17 @@
     nav.hidden = !db.current;
     nav.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.go === on));
   }
+  let leaveGuard = null;
   function route(name, arg) {
-    stopAudio();
+    if (leaveGuard && !leaveGuard()) return;
+    leaveGuard = null;
+    stopAudio(); keepAwake(false);
     window.scrollTo(0, 0);
     if (!db.current && name !== "login") name = "login";
-    setNav(name === "audioItem" ? "audio" : name === "theory" ? "topics" : name);
+    setNav({ audioItem: "audio", podcast: "audio", theory: "topics", errLog: "home", flashRun: "flash" }[name] || name);
     ({ login: viewLogin, home: viewHome, topics: viewTopics, account: viewAccount,
-       audio: viewAudio, audioItem: viewAudioItem, theory: viewTheory,
+       audio: viewAudio, audioItem: viewAudioItem, theory: viewTheory, podcast: viewPodcast,
+       errLog: viewErrLog, errors: () => runQuiz("errors", arg), flash: viewFlash, flashRun: viewFlashRun,
        placement: () => runQuiz("placement"), study: () => runQuiz("study", arg),
        sim: () => runQuiz("sim") })[name](arg);
   }
@@ -307,6 +313,14 @@
         <button class="btn big" data-act="study">Começar sessão</button>
       </div>
       <div class="card">
+        <h3>📈 Evolução</h3>
+        ${evoChart(p)}
+      </div>
+      <div class="grid2">
+        <button class="card tile" data-act="errLog"><span class="tile-ic">📕</span><b>Caderno de erros</b><small>${errorList(p).filter(q => p.cards[q.id].box < 3).length} pedindo atenção</small></button>
+        <button class="card tile" data-act="flash"><span class="tile-ic">🃏</span><b>Flashcards</b><small>${flashStats(p).due} para revisar hoje</small></button>
+      </div>
+      <div class="card">
         <h3>🎧 Treino de ouvido</h3>
         <p class="muted">${AUDIOS.length} áudios A2, B1 e B2 com perguntas, transcrição e ditado. ${audioDoneCount(p)} concluídos.</p>
         <button class="btn big ghost" data-act="audio">Abrir áudios</button>
@@ -317,7 +331,7 @@
       </div>
       <div class="card">
         <h3>Simulado TDIE</h3>
-        <p class="muted">${SIM_SIZE} questões de múltipla escolha com leitura e áudio, sem dicas até o final. Dá a nota de 0 a 100 na escala da ICA.</p>
+        <p class="muted">${SIM_SIZE} questões de múltipla escolha com leitura e áudio, sem dicas até o final. Modo treino ou <b>modo prova real</b>, com tempo-limite e sem pausa.</p>
         ${p.sims.length ? `<p class="small">Último: <b>${p.sims.at(-1).score} pts (${band(p.sims.at(-1).score)})</b> em ${fmtDate(p.sims.at(-1).date)}</p>` : ""}
         <button class="btn big ghost" data-act="sim">Fazer simulado</button>
       </div>
@@ -334,6 +348,9 @@
     app.querySelector('[data-act="study"]').onclick = () => route("study");
     app.querySelector('[data-act="sim"]').onclick = () => route("sim");
     app.querySelector('[data-act="audio"]').onclick = () => route("audio");
+    app.querySelector('[data-act="errLog"]').onclick = () => route("errLog");
+    app.querySelector('[data-act="flash"]').onclick = () => route("flash");
+    bindEvo();
     app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => route("study", b.dataset.topic));
     app.querySelectorAll("[data-theory]").forEach(b => b.onclick = () => route("theory", b.dataset.theory));
   }
@@ -352,8 +369,10 @@
   function viewTopics() {
     const p = me();
     const groups = ["A2", "B1", "B2"];
+    setTimeout(() => { const b = document.getElementById("toErr"); if (b) b.onclick = () => route("errLog"); }, 0);
     app.innerHTML = `<div class="card"><h1>Tópicos do TDIE</h1>
-      <p class="muted">Conteúdo cobrado de A2 a B2 conforme a ICA 37-324. A barra é seu domínio em cada um.</p></div>
+      <p class="muted">Conteúdo cobrado de A2 a B2 conforme a ICA 37-324. A barra é seu domínio em cada um.</p>
+      <button class="btn ghost sm" id="toErr">📕 Caderno de erros</button></div>
       ${groups.map(g => `<div class="card"><h2><span class="lvl ${g}">${g}</span></h2>
         ${TOPICS.filter(t => t.lv === g).map(t => topicRow(p, t, true)).join("")}</div>`).join("")}`;
     app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => route("study", b.dataset.topic));
@@ -490,6 +509,8 @@
         </ol>
         <p class="small muted">Comece em 0,9× e suba para 1× quando acertar tudo. Alterne os sotaques: a prova pode ter os dois.</p>
         ${audioSettingsHtml()}
+        <div style="height:12px"></div>
+        <button class="btn big orange" id="toPod">🎧 Modo podcast: ouvir em sequência</button>
       </div>
       ${["A2", "B1", "B2"].map(lv => {
         const items = AUDIOS.filter(a => a.lv === lv);
@@ -502,6 +523,7 @@
         </div>`;
       }).join("")}`;
     bindAudioSettings(() => viewAudio());
+    document.getElementById("toPod").onclick = () => route("podcast");
     app.querySelectorAll("[data-audio]").forEach(b => b.onclick = () => route("audioItem", b.dataset.audio));
   }
   function audioRow(p, a) {
@@ -698,34 +720,67 @@
   }
 
   // ---------- motor de questões ----------
+  function errorList(p, topic) {
+    return QUESTIONS.filter(q => (!topic || q.t === topic) && p.cards[q.id] && p.cards[q.id].w > 0);
+  }
+  function errorSet(p, topic) {
+    const l = errorList(p, topic).sort((a, b) => p.cards[a.id].box - p.cards[b.id].box || p.cards[b.id].w - p.cards[a.id].w);
+    return interleave(l.slice(0, 15));
+  }
   function runQuiz(mode, topic) {
     const p = me();
-    const list = mode === "placement" ? placementSet() : mode === "sim" ? simSet() : pickSession(p, topic);
-    const st = { i: 0, list, res: [], retry: new Set(), start: Date.now(), plays: {} };
+    const list = mode === "placement" ? placementSet() : mode === "sim" ? simSet() : mode === "errors" ? errorSet(p, topic) : pickSession(p, topic);
+    if (!list.length) { toast("Nenhuma questão para refazer aqui."); return route(mode === "errors" ? "errLog" : "home"); }
+    const st = { i: 0, list, res: [], retry: new Set(), start: Date.now(), plays: {}, real: false, limit: 45, curDone: false };
+    const learnMode = mode === "study" || mode === "errors";
     const intro = {
       placement: ["Teste de nivelamento", `${list.length} questões, uma de cada tópico, com leitura e áudio. Sem dicas: responda o que souber, sem chutar à toa. O que acertar sai do seu plano de estudo.`],
       sim: ["Simulado TDIE", `${SIM_SIZE} questões no formato da prova: múltipla escolha, compreensão leitora e auditiva. Cada áudio pode ser ouvido 2 vezes. As explicações aparecem no final.`],
-      study: [topic ? `Prática: ${T[topic].name}` : "Sessão de estudo", "Responda. Se errar, leia a explicação curta e siga. Questões erradas voltam no fim da sessão e na revisão."]
+      study: [topic ? `Prática: ${T[topic].name}` : "Sessão de estudo", "Responda. Se errar, leia a explicação curta e siga. Questões erradas voltam no fim da sessão e na revisão."],
+      errors: [topic ? `Refazer erros: ${T[topic].name}` : "Refazer meus erros", `${list.length} questões que você já errou, começando pelas que ainda está errando.`]
     }[mode];
     app.innerHTML = `<div class="card center"><h1>${intro[0]}</h1><p class="muted">${intro[1]}</p>
-      <p class="small muted">Para os áudios, use fone ou som ligado. Funciona melhor no Chrome ou Edge.</p>
+      ${mode === "sim" ? `
+        <div class="simmode">
+          <button class="mode-card on" data-m="train"><b>🧪 Modo treino</b><small>Cronômetro só informativo. Pode sair quando quiser.</small></button>
+          <button class="mode-card" data-m="real"><b>🎯 Modo prova real</b><small>Tempo-limite e sem pausa: o tempo continua correndo se você sair do app. Acabou o tempo, a prova é encerrada.</small></button>
+        </div>
+        <div id="realOpts" hidden style="text-align:left">
+          <label>Tempo-limite</label>
+          <div class="seg" id="limSeg"><button data-v="30">30 min</button><button data-v="45" class="on">45 min</button><button data-v="60">60 min</button></div>
+          <p class="small muted">A ICA não define a duração do TDIE. 45 min (1,5 min por questão) é uma referência para treinar ritmo.</p>
+        </div>` : ""}
+      <p class="small muted">Para os áudios, use fone ou som ligado.</p>
       <button class="btn big" id="startQ">Começar</button></div>`;
-    document.getElementById("startQ").onclick = () => showQ();
+    if (mode === "sim") {
+      app.querySelectorAll(".mode-card").forEach(b => b.onclick = () => {
+        st.real = b.dataset.m === "real";
+        app.querySelectorAll(".mode-card").forEach(x => x.classList.toggle("on", x === b));
+        document.getElementById("realOpts").hidden = !st.real;
+      });
+      app.querySelectorAll("#limSeg button").forEach(b => b.onclick = () => {
+        st.limit = +b.dataset.v; app.querySelectorAll("#limSeg button").forEach(x => x.classList.toggle("on", x === b));
+      });
+    }
+    document.getElementById("startQ").onclick = () => {
+      st.start = Date.now();
+      if (st.real) leaveGuard = () => confirm("Sair agora encerra o simulado sem nota. Sair mesmo?");
+      showQ();
+    };
 
     function showQ() {
       const q = st.list[st.i];
       const ps = q.p ? P[q.p] : null;
       const total = st.list.length, pos = st.i + 1;
-      const showFb = mode === "study";
       const letters = "ABCD";
-      // embaralha alternativas mantendo o gabarito
+      st.curDone = false;
       const order = shuffle(q.o.map((_, k) => k));
       app.innerHTML = `
-        <div class="prog-label"><span>${pos} de ${total}</span><span>${mode === "sim" ? `<span class="timer" id="tm"></span>` : `<span class="lvl ${q.lv}">${q.lv}</span> ${esc(T[q.t].name)}`}</span></div>
+        <div class="prog-label"><span>${pos} de ${total}${st.real ? ` · <b>prova real</b>` : ""}</span><span>${mode === "sim" ? `<span class="timer" id="tm"></span>` : `<span class="lvl ${q.lv}">${q.lv}</span> ${esc(T[q.t].name)}`}</span></div>
         <div class="progress thin" style="margin-bottom:14px"><span style="width:${Math.round(100 * (pos - 1) / total)}%"></span></div>
         <div class="card">
           ${ps && ps.type === "read" ? `<div class="passage"><h4>${esc(ps.title)}</h4>${esc(ps.text)}</div>` : ""}
-          ${ps && ps.type === "listen" ? `<div class="audio"><button class="btn" id="play">▶ Ouvir</button><div class="small"><b>${esc(ps.title)}</b><br><span id="plays">${playsLabel(ps.id)}</span></div></div>` : ""}
+          ${ps && ps.type === "listen" ? `<div class="audio"><button class="btn" id="play">▶ Ouvir</button><div class="small"><b>${esc(cleanTitle(ps.title))}</b><br><span id="plays">${playsLabel(ps.id)}</span></div></div>` : ""}
           <div class="q-text">${esc(q.q)}</div>
           <div class="opts">${order.map((k, j) => `<button class="opt" data-k="${k}"><span class="let">${letters[j]}</span><span>${esc(q.o[k])}</span></button>`).join("")}</div>
           <div id="fb"></div>
@@ -734,18 +789,19 @@
       const play = document.getElementById("play");
       if (play) play.onclick = () => {
         const used = st.plays[ps.id] || 0;
-        if (mode !== "study" && used >= 2) return toast("Limite de 2 audições, como na prova.");
+        if (!learnMode && used >= 2) return toast("Limite de 2 audições, como na prova.");
         st.plays[ps.id] = used + 1; document.getElementById("plays").textContent = playsLabel(ps.id);
-        speak(ps.text, play, mode === "study" ? null : 0.95);
+        speak(ps.text, play, learnMode ? null : 0.95);
       };
-      app.querySelectorAll(".opt").forEach(b => b.onclick = () => answer(q, +b.dataset.k, b, showFb, ps));
+      app.querySelectorAll(".opt").forEach(b => b.onclick = () => answer(q, +b.dataset.k, b, learnMode, ps));
     }
     function playsLabel(pid) {
       const u = st.plays[pid] || 0;
-      return mode === "study" ? "Ouça quantas vezes quiser" : `Audições: ${u}/2`;
+      return learnMode ? "Ouça quantas vezes quiser" : `Audições: ${u}/2`;
     }
     function answer(q, k, btn, showFb, ps) {
       const ok = k === q.a;
+      st.curDone = true;
       app.querySelectorAll(".opt").forEach(b => {
         b.disabled = true;
         if (showFb) { if (+b.dataset.k === q.a) b.classList.add("right"); else if (b === btn) b.classList.add("wrong"); }
@@ -754,10 +810,9 @@
       const isRetry = st.retry.has(q.id) && st.res.some(r => r.q.id === q.id);
       if (!isRetry) {
         st.res.push({ q, k, ok });
-        // nivelamento: define o ponto de partida do tópico; estudo e simulado: aprendizado normal
         if (mode !== "placement") { updateTopic(p, q.t, ok); updateCard(p, q.id, ok); p.xp += ok ? 10 : 2; p.answered++; }
       } else if (ok) p.xp += 4;
-      if (mode === "study" && !ok && !st.retry.has(q.id)) { st.retry.add(q.id); st.list.push(q); }
+      if (learnMode && !ok && !st.retry.has(q.id)) { st.retry.add(q.id); st.list.push(q); }
       save();
       const fb = document.getElementById("fb");
       const next = `<div style="height:12px"></div><button class="btn big" id="nextQ">${st.i + 1 < st.list.length ? "Próxima" : "Ver resultado"}</button>`;
@@ -774,11 +829,26 @@
       if (!showFb) setTimeout(() => { const n = document.getElementById("nextQ"); n && n.focus(); }, 0);
     }
     let timerId = null;
+    const fmtT = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
     function tick() {
       clearInterval(timerId);
-      const el = () => document.getElementById("tm");
-      const upd = () => { const s = Math.floor((Date.now() - st.start) / 1000); if (el()) el().textContent = `⏱ ${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+      const upd = () => {
+        const el = document.getElementById("tm");
+        if (!el) { clearInterval(timerId); return; } // saiu da prova
+        const s = Math.floor((Date.now() - st.start) / 1000);
+        if (!st.real) { el.textContent = `⏱ ${fmtT(s)}`; return; }
+        const left = st.limit * 60 - s;
+        if (left <= 0) { clearInterval(timerId); return timeUp(); }
+        el.textContent = `⏳ ${fmtT(left)}`;
+        el.classList.toggle("late", left <= 300);
+      };
       upd(); timerId = setInterval(upd, 1000);
+    }
+    function timeUp() {
+      stopAudio();
+      for (let j = st.curDone ? st.i + 1 : st.i; j < st.list.length; j++) st.res.push({ q: st.list[j], k: -1, ok: false, skipped: true });
+      st.timedOut = true;
+      finish();
     }
     function weightedScore() {
       let s = 0, w = 0; st.res.forEach(r => { const k = LV_W[r.q.lv]; w += k; if (r.ok) s += k; });
@@ -786,11 +856,11 @@
     }
     function finish() {
       clearInterval(timerId);
+      leaveGuard = null;
       const right = st.res.filter(r => r.ok).length, n = st.res.length;
       bumpStreak(p);
       if (mode === "placement") {
         const sc = weightedScore();
-        // ponto de partida de cada tópico a partir do resultado do nivelamento
         TOPICS.forEach(t => {
           const rs = st.res.filter(r => r.q.t === t.id);
           if (!rs.length) { p.topics[t.id].m = Math.max(p.topics[t.id].m, LV_W[t.lv] <= 1 && sc >= 66 ? 0.6 : 0.2); return; }
@@ -810,7 +880,7 @@
             <p style="margin-top:10px">${right} de ${n} acertos. ${sc >= TARGET ? "Você já está em faixa de B2! Use os simulados para confirmar." : `Faltam cerca de ${TARGET - sc} pontos para o B2.`}</p>
           </div>
           <div class="card"><h3>✅ Já sabe (sai do plano) · ${known.length}</h3>
-            <p class="small">${known.map(t => esc(t.name)).join(" · ") || "Nenhum ainda — tudo bem, é para isso que o sistema existe."}</p>
+            <p class="small">${known.map(t => esc(t.name)).join(" · ") || "Nenhum ainda. Tudo bem: é para isso que o sistema existe."}</p>
             <h3 style="margin-top:14px">🎯 Seu plano de estudo · ${focus.length} tópicos</h3>
             <p class="small">${focus.map(t => esc(t.name)).join(" · ")}</p>
             <p class="small muted">Ritmo sugerido: 1 sessão de 15 min por dia, 5 dias por semana, e 1 simulado por semana.</p>
@@ -822,12 +892,14 @@
       }
       if (mode === "sim") {
         const sc = weightedScore(); const mins = Math.round((Date.now() - st.start) / 60000);
-        p.sims.push({ date: today(), score: sc, mins }); save();
+        const skipped = st.res.filter(r => r.skipped).length;
+        p.sims.push({ date: today(), score: sc, mins, real: st.real }); save();
         const prev = p.sims.length > 1 ? p.sims[p.sims.length - 2].score : null;
         app.innerHTML = `<div class="card hero center">
-            <small>Simulado TDIE</small><div class="score-big" style="margin:8px 0">${sc} pts</div>
+            <small>Simulado TDIE · ${st.real ? "modo prova real" : "modo treino"}</small><div class="score-big" style="margin:8px 0">${sc} pts</div>
             <span class="lvl ${band(sc)}" style="font-size:1rem">${band(sc)}</span>
             <p style="margin-top:10px">${right}/${n} acertos em ${mins} min${prev != null ? ` · ${sc >= prev ? "▲" : "▼"} ${Math.abs(sc - prev)} pts vs. anterior` : ""}</p>
+            ${st.timedOut ? `<p style="color:#ffd7a8"><b>Tempo esgotado:</b> ${skipped} questões ficaram sem resposta e contaram como erro.</p>` : ""}
             <div class="progress" style="margin-top:8px"><span style="width:${Math.min(100, Math.round(100 * sc / TARGET))}%"></span></div>
             <small>${sc >= TARGET ? "Nota de B2! Repita para confirmar e depois peça o TDIE." : `Faltam ${TARGET - sc} pts para o B2. Os erros já entraram na revisão.`}</small>
           </div>${reviewHtml(true)}<button class="btn big" id="toHome">Voltar ao painel</button>`;
@@ -837,7 +909,7 @@
       save();
       const sc = estScore(p);
       app.innerHTML = `<div class="card hero center">
-          <small>Sessão concluída</small><div class="score-big" style="margin:8px 0">${right}/${n}</div>
+          <small>${mode === "errors" ? "Revisão de erros concluída" : "Sessão concluída"}</small><div class="score-big" style="margin:8px 0">${right}/${n}</div>
           <p>+${st.res.reduce((a, r) => a + (r.ok ? 10 : 2), 0)} XP · nota estimada agora: <b>${sc} (${band(sc)})</b></p>
           <div class="progress"><span style="width:${Math.min(100, Math.round(100 * sc / TARGET))}%"></span></div>
           <small>${Math.min(100, Math.round(100 * sc / TARGET))}% do caminho até o B2</small>
@@ -847,9 +919,9 @@
           return wt.length ? `<div class="card"><h3>📖 Revise a teoria do que você errou</h3>
             <div class="theory-links">${wt.map(t => `<button class="btn ghost sm" data-theory="${t}">${esc(T[t].name)}</button>`).join("")}</div></div>` : "";
         })()}
-        <div class="row"><button class="btn big" id="again">Mais uma sessão</button><button class="btn big ghost" id="toHome">Painel</button></div>`;
+        <div class="row"><button class="btn big" id="again">${mode === "errors" ? "Caderno de erros" : "Mais uma sessão"}</button><button class="btn big ghost" id="toHome">Painel</button></div>`;
       app.querySelectorAll("[data-theory]").forEach(b => b.onclick = () => route("theory", b.dataset.theory));
-      document.getElementById("again").onclick = () => route("study", topic);
+      document.getElementById("again").onclick = () => mode === "errors" ? route("errLog") : route("study", topic);
       document.getElementById("toHome").onclick = () => route("home");
     }
     function reviewHtml(withExp) {
@@ -857,9 +929,299 @@
       if (!wrong.length) return `<div class="card center"><b>Nenhum erro. 👏</b></div>`;
       return `<div class="card"><h3>Revise seus erros (${wrong.length})</h3>${wrong.map(r => `
         <div class="review-item"><b>${esc(r.q.q)}</b><br>
-        <span style="color:var(--red)">Você: ${esc(r.q.o[r.k])}</span> · <span style="color:var(--green)">Certo: ${esc(r.q.o[r.q.a])}</span>
+        <span style="color:var(--red)">Você: ${r.k < 0 ? "sem resposta" : esc(r.q.o[r.k])}</span> · <span style="color:var(--green)">Certo: ${esc(r.q.o[r.q.a])}</span>
         ${withExp !== false ? `<div class="muted">${esc(r.q.e)}</div>` : ""}</div>`).join("")}</div>`;
     }
+  }
+
+  // ---------- caderno de erros ----------
+  function viewErrLog(filter) {
+    const p = me();
+    const all = errorList(p);
+    const byT = {}; all.forEach(q => { byT[q.t] = (byT[q.t] || 0) + 1; });
+    const shown = all.filter(q => !filter || q.t === filter)
+      .sort((a, b) => p.cards[a.id].box - p.cards[b.id].box || p.cards[b.id].w - p.cards[a.id].w);
+    const active = all.filter(q => p.cards[q.id].box < 3).length;
+    const status = c => c.box === 0 ? `<span class="chip focus">ainda errando</span>` : c.box >= 3 ? `<span class="chip ok">superado</span>` : `<span class="chip warnchip">em revisão</span>`;
+    app.innerHTML = `
+      <div class="card"><h1>📕 Caderno de erros</h1>
+        <p class="muted">Tudo que você já errou. <b>${active}</b> ainda pedem atenção; ${all.length - active} você já superou (acertou 3 vezes seguidas).</p>
+        ${all.length ? `<button class="btn big" id="redo">Refazer ${filter ? "erros deste tópico" : "meus erros"} (${Math.min(15, shown.length)})</button>` : ""}
+      </div>
+      ${all.length ? `<div class="chips-row">
+        <button class="fchip ${!filter ? "on" : ""}" data-f="">Todos (${all.length})</button>
+        ${TOPICS.filter(t => byT[t.id]).map(t => `<button class="fchip ${filter === t.id ? "on" : ""}" data-f="${t.id}">${esc(t.name)} (${byT[t.id]})</button>`).join("")}
+      </div>
+      <div class="card">${shown.map(q => {
+        const c = p.cards[q.id], ps = q.p ? P[q.p] : null;
+        return `<details class="err-item">
+          <summary><span class="err-q">${esc(q.q)}</span><span class="err-meta">${status(c)} <span class="small muted">errou ${c.w}×</span></span></summary>
+          ${ps ? `<p class="small muted">${ps.type === "listen" ? "🎧" : "📄"} ${esc(cleanTitle(ps.title))}</p>` : ""}
+          <p class="small"><b style="color:var(--green)">Resposta:</b> ${esc(q.o[q.a])}</p>
+          <p class="small muted">${esc(q.e)}</p>
+          <button class="btn ghost sm" data-theory="${q.t}">📖 Teoria: ${esc(T[q.t].name)}</button>
+        </details>`;
+      }).join("")}</div>`
+      : `<div class="card center"><p>Nenhum erro registrado ainda. Faça uma sessão de estudo e volte aqui.</p></div>`}`;
+    app.querySelectorAll(".fchip").forEach(b => b.onclick = () => viewErrLog(b.dataset.f || null));
+    app.querySelectorAll("[data-theory]").forEach(b => b.onclick = () => route("theory", b.dataset.theory));
+    const redo = document.getElementById("redo");
+    if (redo) redo.onclick = () => route("errors", filter);
+  }
+
+  // ---------- modo podcast ----------
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && "wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); }
+      else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch {}
+  }
+  function viewPodcast() {
+    const p = me();
+    let pref = { lv: "B1", rep: true, text: true };
+    try { pref = Object.assign(pref, JSON.parse(localStorage.getItem("rumo_b2_pod")) || {}); } catch {}
+    const savePref = () => { try { localStorage.setItem("rumo_b2_pod", JSON.stringify(pref)); } catch {} };
+    let list = [], idx = 0, pass = 0, running = false, gapT = null;
+    const levels = [["A2", "A2"], ["B1", "B1"], ["B2", "B2"], ["ALL", "Todos"]];
+    app.innerHTML = `
+      <button class="back" id="back">← Áudios</button>
+      <div class="card hero" id="pod">
+        <small>🎧 Modo podcast</small>
+        <h2 id="pTitle" style="margin:6px 0">Escolha o nível e aperte play</h2>
+        <div class="small" id="pSub" style="color:#cfe0ff">Os áudios tocam em sequência, sem precisar tocar na tela.</div>
+        <div class="pod-text" id="pText"></div>
+        <div class="progress thin" style="margin:12px 0"><span id="pBar" style="width:0%"></span></div>
+        <div class="pod-ctl">
+          <button class="pbtn" id="pPrev" aria-label="Anterior">⏮</button>
+          <button class="pbtn big" id="pPlay" aria-label="Tocar">▶</button>
+          <button class="pbtn" id="pNext" aria-label="Próximo">⏭</button>
+        </div>
+      </div>
+      <div class="card">
+        <label>Nível</label>
+        <div class="seg" id="lvSeg">${levels.map(([v, l]) => `<button data-v="${v}" class="${pref.lv === v ? "on" : ""}">${l}</button>`).join("")}</div>
+        <label class="check"><input type="checkbox" id="rep" ${pref.rep ? "checked" : ""}> Tocar cada áudio 2 vezes (como na prova)</label>
+        <label class="check"><input type="checkbox" id="txt" ${pref.text ? "checked" : ""}> Mostrar a frase que está tocando</label>
+        ${audioSettingsHtml()}
+        <p class="small muted" style="margin-top:12px">📱 Deixe a tela ligada: o iPhone pausa a voz quando a tela apaga ou você troca de app. O app tenta manter a tela acesa enquanto toca.</p>
+      </div>`;
+    const $ = s => document.getElementById(s);
+    bindAudioSettings();
+    $("back").onclick = () => route("audio");
+    app.querySelectorAll("#lvSeg button").forEach(b => b.onclick = () => {
+      pref.lv = b.dataset.v; savePref(); app.querySelectorAll("#lvSeg button").forEach(x => x.classList.toggle("on", x === b));
+      if (running) { stop(); start(); }
+    });
+    $("rep").onchange = e => { pref.rep = e.target.checked; savePref(); };
+    $("txt").onchange = e => { pref.text = e.target.checked; savePref(); if (!pref.text) $("pText").textContent = ""; };
+    const alive = () => running && document.getElementById("pod");
+    function load() { list = pref.lv === "ALL" ? AUDIOS.slice() : AUDIOS.filter(a => a.lv === pref.lv); }
+    function show() {
+      const a = list[idx];
+      $("pTitle").textContent = cleanTitle(a.title);
+      $("pSub").textContent = `${a.lv} · áudio ${idx + 1} de ${list.length}${pref.rep ? ` · ${pass + 1}ª vez` : ""}`;
+      $("pBar").style.width = `${Math.round(100 * idx / list.length)}%`;
+    }
+    function playCur() {
+      clearTimeout(gapT);
+      const a = list[idx]; show();
+      const segs = segments(a.text);
+      p.audio = p.audio || {}; (p.audio[a.id] = p.audio[a.id] || { plays: 0, best: 0, last: null }).plays++; save();
+      playSegs(segs, {
+        onSeg: i => { if (pref.text && alive()) $("pText").textContent = (segs[i].spk ? segs[i].spk + ": " : "") + segs[i].text; },
+        onEnd: () => {
+          if (!alive()) return;
+          gapT = setTimeout(() => {
+            if (!alive()) return;
+            if (pref.rep && pass === 0) pass = 1; else { pass = 0; idx++; }
+            if (idx >= list.length) return done();
+            playCur();
+          }, 2000);
+        }
+      });
+    }
+    function start() { load(); idx = Math.min(idx, list.length - 1); pass = 0; running = true; keepAwake(true); $("pPlay").textContent = "⏸"; playCur(); }
+    function stop() { running = false; clearTimeout(gapT); stopAudio(); keepAwake(false); $("pPlay").textContent = "▶"; }
+    function done() { stop(); idx = 0; $("pTitle").textContent = "Fim da playlist 🎉"; $("pSub").textContent = "Toque ▶ para recomeçar."; $("pText").textContent = ""; $("pBar").style.width = "100%"; }
+    $("pPlay").onclick = () => running ? stop() : start();
+    $("pNext").onclick = () => { if (!list.length) load(); idx = Math.min(list.length - 1, idx + 1); pass = 0; if (running) playCur(); else show(); };
+    $("pPrev").onclick = () => { if (!list.length) load(); idx = Math.max(0, idx - 1); pass = 0; if (running) playCur(); else show(); };
+  }
+
+  // ---------- flashcards ----------
+  const FLASH = (() => {
+    const out = (window.FLASHCARDS || []).map(c => Object.assign({}, c));
+    const seen = new Set(out.map(c => c.en.toLowerCase()));
+    Object.entries(window.AUDIO_VOCAB || {}).forEach(([aid, arr]) => arr.forEach(([en, pt]) => {
+      const k = en.toLowerCase(); if (seen.has(k)) return; seen.add(k);
+      out.push({ id: "av_" + k.replace(/\W+/g, "_"), deck: "audio", en, pt });
+    }));
+    return out;
+  })();
+  const DECKS = [
+    ["phrasal", "Phrasal verbs", "🔗"], ["false", "Falsos cognatos e expressões", "🎭"],
+    ["connect", "Conectivos", "🧩"], ["b2", "Vocabulário B2", "🎓"], ["audio", "Palavras dos áudios", "🎧"]
+  ];
+  function flashStats(p, deck) {
+    p.flash = p.flash || {};
+    const cards = FLASH.filter(c => !deck || c.deck === deck);
+    const t = today();
+    return {
+      total: cards.length,
+      learned: cards.filter(c => p.flash[c.id] && p.flash[c.id].box >= 3).length,
+      due: cards.filter(c => p.flash[c.id] && p.flash[c.id].due <= t).length,
+      fresh: cards.filter(c => !p.flash[c.id]).length
+    };
+  }
+  function viewFlash() {
+    const p = me();
+    let dir = "en"; try { dir = localStorage.getItem("rumo_b2_fdir") || "en"; } catch {}
+    const all = flashStats(p);
+    app.innerHTML = `
+      <div class="card"><h1>🃏 Flashcards</h1>
+        <p class="muted">Vocabulário com revisão espaçada: o que você lembra volta cada vez mais tarde; o que esquece volta logo.</p>
+        <div class="stats light"><div class="stat"><b>${all.due}</b><small>para revisar hoje</small></div><div class="stat"><b>${all.learned}</b><small>aprendidas</small></div><div class="stat"><b>${all.total}</b><small>no total</small></div></div>
+        <label>Direção</label>
+        <div class="seg" id="dirSeg"><button data-v="en" class="${dir === "en" ? "on" : ""}">Inglês → Português</button><button data-v="pt" class="${dir === "pt" ? "on" : ""}">Português → Inglês</button></div>
+        <div style="height:12px"></div>
+        <button class="btn big" data-deck="">Estudar todos os baralhos</button>
+      </div>
+      <div class="card">${DECKS.map(([id, name, ic]) => {
+        const s = flashStats(p, id), pct = s.total ? Math.round(100 * s.learned / s.total) : 0;
+        return `<button class="audio-row" data-deck="${id}">
+          <span class="ar-ic">${ic}</span>
+          <span class="ar-txt"><b>${name}</b><small>${s.total} cartas · ${s.due} para revisar · ${s.fresh} novas</small>
+            <span class="progress thin" style="margin-top:6px;display:block"><span style="width:${pct}%"></span></span></span>
+          <span class="chip ${pct >= 80 ? "ok" : ""}">${pct}%</span></button>`;
+      }).join("")}</div>`;
+    app.querySelectorAll("#dirSeg button").forEach(b => b.onclick = () => {
+      dir = b.dataset.v; try { localStorage.setItem("rumo_b2_fdir", dir); } catch {}
+      app.querySelectorAll("#dirSeg button").forEach(x => x.classList.toggle("on", x === b));
+    });
+    app.querySelectorAll("[data-deck]").forEach(b => b.onclick = () => route("flashRun", b.dataset.deck || null));
+  }
+  function viewFlashRun(deck) {
+    const p = me(); p.flash = p.flash || {};
+    let dir = "en"; try { dir = localStorage.getItem("rumo_b2_fdir") || "en"; } catch {}
+    const t = today();
+    const pool = FLASH.filter(c => !deck || c.deck === deck);
+    const due = shuffle(pool.filter(c => p.flash[c.id] && p.flash[c.id].due <= t)).sort((a, b) => p.flash[a.id].box - p.flash[b.id].box);
+    const fresh = shuffle(pool.filter(c => !p.flash[c.id])).slice(0, Math.max(0, 20 - due.length > 10 ? 10 : 20 - due.length));
+    const queue = due.slice(0, 20).concat(fresh);
+    if (!queue.length) {
+      app.innerHTML = `<button class="back" id="back">← Flashcards</button><div class="card center"><h2>Tudo em dia! ✅</h2><p class="muted">Não há cartas para revisar neste baralho hoje. Volte amanhã.</p></div>`;
+      document.getElementById("back").onclick = () => route("flash");
+      return;
+    }
+    const total = queue.length, again = new Set();
+    let i = 0, known = 0;
+    const deckName = deck ? DECKS.find(d => d[0] === deck)[1] : "Todos os baralhos";
+    function render() {
+      const c = queue[i];
+      const front = dir === "en" ? c.en : c.pt;
+      app.innerHTML = `
+        <button class="back" id="back">← Flashcards</button>
+        <div class="prog-label"><span>${esc(deckName)}</span><span>${Math.min(i + 1, total)} de ${total}${queue.length > total ? ` (+${queue.length - total} repetição)` : ""}</span></div>
+        <div class="progress thin" style="margin-bottom:14px"><span style="width:${Math.round(100 * Math.min(i, total) / total)}%"></span></div>
+        <div class="flashcard" id="fc">
+          <div class="fc-front">${esc(front)}</div>
+          ${dir === "en" ? `<button class="btn ghost sm" id="say">🔊 Ouvir</button>` : ""}
+          <div class="fc-back" id="back2" hidden>
+            <div class="fc-ans">${esc(dir === "en" ? c.pt : c.en)}</div>
+            ${dir === "pt" ? `<button class="btn ghost sm" id="say2">🔊 Ouvir</button>` : ""}
+            ${c.ex ? `<div class="fc-ex">${esc(c.ex)}</div>` : ""}
+          </div>
+        </div>
+        <div id="fcBtns"><button class="btn big" id="reveal">Mostrar resposta</button></div>`;
+      document.getElementById("back").onclick = () => route("flash");
+      const say = () => playSegs([{ who: 0, text: c.en }], { rate: 0.85 });
+      if (document.getElementById("say")) { document.getElementById("say").onclick = say; say(); }
+      document.getElementById("reveal").onclick = () => {
+        document.getElementById("back2").hidden = false;
+        const s2 = document.getElementById("say2"); if (s2) { s2.onclick = say; say(); }
+        document.getElementById("fcBtns").innerHTML = `<div class="row"><button class="btn big no-btn" id="no">✗ Não lembrei</button><button class="btn big ok-btn" id="yes">✓ Lembrei</button></div>`;
+        document.getElementById("no").onclick = () => grade(false);
+        document.getElementById("yes").onclick = () => grade(true);
+      };
+    }
+    function grade(ok) {
+      const c = queue[i];
+      if (i < total) { // só a 1ª vez conta para a revisão espaçada
+        const r = p.flash[c.id] || { box: 0, due: t };
+        r.box = ok ? Math.min(r.box + 1, BOX_DAYS.length - 1) : 0;
+        r.due = addDays(t, ok ? BOX_DAYS[r.box] : 0);
+        p.flash[c.id] = r;
+      }
+      if (ok) { known++; p.xp += 2; }
+      else if (!again.has(c.id)) { again.add(c.id); queue.push(c); }
+      save(); i++;
+      if (i < queue.length) render(); else finishRun();
+    }
+    function finishRun() {
+      bumpStreak(p); save();
+      const s = flashStats(p, deck);
+      app.innerHTML = `<div class="card hero center"><small>Rodada concluída</small>
+        <div class="score-big" style="margin:8px 0">${known}/${queue.length}</div>
+        <p>${s.learned} de ${s.total} cartas aprendidas neste baralho.</p>
+        <div class="progress"><span style="width:${Math.round(100 * s.learned / s.total)}%"></span></div></div>
+        <div class="row"><button class="btn big" id="more">Mais uma rodada</button><button class="btn big ghost" id="decks">Baralhos</button></div>`;
+      document.getElementById("more").onclick = () => route("flashRun", deck);
+      document.getElementById("decks").onclick = () => route("flash");
+    }
+    render();
+  }
+
+  // ---------- gráfico de evolução ----------
+  function evoChart(p) {
+    const hist = Object.entries(p.hist || {}).sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-60);
+    const sims = (p.sims || []).filter(s => !hist.length || s.date >= hist[0][0]);
+    if (!hist.length) return `<p class="small muted">O gráfico aparece depois da sua primeira sessão.</p>`;
+    const d0 = new Date(hist[0][0] + "T12:00:00"), dN = new Date(today() + "T12:00:00");
+    const span = Math.max(1, Math.round((dN - d0) / 864e5));
+    const W = 340, H = 190, L = 30, R = 34, Tp = 12, B = 26;
+    const x = d => L + (W - L - R) * (Math.round((new Date(d + "T12:00:00") - d0) / 864e5) / span);
+    const y = v => Tp + (H - Tp - B) * (1 - v / 100);
+    const pts = hist.map(([d, v]) => [x(d), y(v), d, v]);
+    const path = pts.map((q, k) => `${k ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" ");
+    const bands = [[86, "B2"], [76, "B1"], [66, "A2"], [55, "A1"]];
+    const fmt = d => d.slice(8, 10) + "/" + d.slice(5, 7);
+    const pts2 = sims.map(s => [x(s.date), y(s.score), s]);
+    const svg = `<svg viewBox="0 0 ${W} ${H}" class="evo" role="img" aria-label="Evolução da nota estimada e dos simulados">
+      ${bands.map(([v, l]) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="${v === 86 ? "target" : "grid"}"/>
+        <text x="${W - R + 4}" y="${y(v) + 4}" class="${v === 86 ? "tl strong" : "tl"}">${l}</text>`).join("")}
+      ${[0, 50, 100].map(v => `<text x="${L - 6}" y="${y(v) + 4}" class="tl" text-anchor="end">${v}</text>`).join("")}
+      <text x="${L}" y="${H - 6}" class="tl">${fmt(hist[0][0])}</text>
+      <text x="${W - R}" y="${H - 6}" class="tl" text-anchor="end">${span > 0 ? fmt(today()) : ""}</text>
+      ${pts.length > 1 ? `<path d="${path}" class="evo-line"/>` : ""}
+      ${pts.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="${pts.length > 1 ? 3 : 5}" class="evo-pt"/>`).join("")}
+      ${pts2.map(q => q[2].real ? `<rect x="${q[0] - 5}" y="${q[1] - 5}" width="10" height="10" rx="2" class="sim-pt"/>` : `<rect x="${q[0] - 4.5}" y="${q[1] - 4.5}" width="9" height="9" rx="2" class="sim-pt hollow"/>`).join("")}
+      ${pts.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="12" class="hit" data-tip="${fmt(q[2])}: nota estimada ${q[3]}"/>`).join("")}
+      ${pts2.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="12" class="hit" data-tip="${fmt(q[2].date)}: simulado ${q[2].real ? "prova real" : "treino"} ${q[2].score} pts"/>`).join("")}
+    </svg>`;
+    const last = hist[hist.length - 1][1], first = hist[0][1], diff = last - first;
+    return `<div class="evo-head"><b>${last}</b> pts hoje ${hist.length > 1 ? `<span class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} desde ${fmt(hist[0][0])}</span>` : ""}</div>
+      <div class="evo-wrap">${svg}<div class="evo-tip" id="evoTip" hidden></div></div>
+      <div class="legend"><span><i class="lg-line"></i>Nota estimada</span><span><i class="lg-sq"></i>Simulado prova real</span><span><i class="lg-sq hollow"></i>Simulado treino</span><span><i class="lg-target"></i>Meta B2 (86)</span></div>
+      ${hist.length === 1 ? `<p class="small muted">Volte amanhã para ver a curva se formar.</p>` : ""}
+      <details class="small" style="margin-top:6px"><summary>Ver em tabela</summary>
+        <table class="evo-table"><tr><th>Data</th><th>Nota estimada</th><th>Simulado</th></tr>
+        ${hist.slice().reverse().map(([d, v]) => { const s = sims.filter(z => z.date === d).map(z => `${z.score}${z.real ? " (real)" : ""}`).join(", "); return `<tr><td>${fmt(d)}</td><td>${v}</td><td>${s || "—"}</td></tr>`; }).join("")}
+        </table></details>`;
+  }
+  function bindEvo() {
+    const tip = document.getElementById("evoTip"); if (!tip) return;
+    const wrap = tip.parentElement;
+    app.querySelectorAll(".evo .hit").forEach(h => {
+      const showTip = () => {
+        const r = h.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+        tip.textContent = h.dataset.tip; tip.hidden = false;
+        tip.style.left = Math.min(w.width - 150, Math.max(0, r.left - w.left - 60)) + "px";
+        tip.style.top = Math.max(0, r.top - w.top - 34) + "px";
+      };
+      h.addEventListener("mouseenter", showTip); h.addEventListener("click", showTip);
+      h.addEventListener("mouseleave", () => { tip.hidden = true; });
+    });
   }
 
   // ---------- início ----------
