@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rumo ao B2 · TDIE</title>
+<meta name="description" content="Sistema de estudo focado no TDIE Inglês nível B2">
+<meta name="theme-color" content="#0b2545">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand" id="goHome">
+    <span class="badge-logo">B2</span>
+    <div><strong>Rumo ao B2</strong><small>TDIE · Inglês</small></div>
+  </div>
+  <nav id="nav" hidden>
+    <button data-go="home">Início</button>
+    <button data-go="topics">Tópicos</button>
+    <button data-go="account">Conta</button>
+  </nav>
+</header>
+
+<main id="app"></main>
+
+<footer class="foot">
+  <div class="dev">
+    <svg viewBox="0 0 64 64" width="28" height="28" aria-hidden="true">
+      <g fill="none" stroke-width="5">
+        <path d="M32 6l5 7 8-3 2 8 8 2-3 8 7 5-7 5 3 8-8 2-2 8-8-3-5 7-5-7-8 3-2-8-8-2 3-8-7-5 7-5-3-8 8-2 2-8 8 3z" stroke="#f28c28"/>
+      </g>
+      <text x="32" y="38" text-anchor="middle" font-size="15" font-family="monospace" font-weight="700" fill="#1e6fd9">&lt;/&gt;</text>
+    </svg>
+    <span>Desenvolvido por <strong>DomDevLabs</strong></span>
+  </div>
+  <span class="ver">v<span id="ver"></span> · Questões inéditas no formato da ICA 37-324/2023</span>
+</footer>
+
+<script src="questions.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
