@@ -3,7 +3,7 @@
    Todo o progresso fica no navegador (localStorage), com backup exportável. */
 (() => {
   "use strict";
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const KEY = "rumo_b2_tdie";
   const TARGET = 86;              // B2 começa em 86 pontos (ICA 37-324, 4.2.3)
   const MASTERY = 0.75;           // tópico considerado dominado
@@ -17,6 +17,21 @@
   const Q = Object.fromEntries(QUESTIONS.map(q => [q.id, q]));
   const app = document.getElementById("app");
   document.getElementById("ver").textContent = VERSION;
+
+  // ---------- tamanho da letra (salvo neste aparelho) ----------
+  const FONT_KEY = "rumo_b2_font";
+  const FONT_STEPS = [14, 16, 18, 20, 22, 24];
+  let fontIdx = 1;
+  try { const f = +localStorage.getItem(FONT_KEY); if (FONT_STEPS.includes(f)) fontIdx = FONT_STEPS.indexOf(f); } catch {}
+  const fDown = document.getElementById("fontDown"), fUp = document.getElementById("fontUp");
+  function applyFont() {
+    document.documentElement.style.fontSize = FONT_STEPS[fontIdx] + "px";
+    fDown.disabled = fontIdx === 0; fUp.disabled = fontIdx === FONT_STEPS.length - 1;
+    try { localStorage.setItem(FONT_KEY, FONT_STEPS[fontIdx]); } catch {}
+  }
+  fDown.onclick = () => { if (fontIdx > 0) { fontIdx--; applyFont(); } };
+  fUp.onclick = () => { if (fontIdx < FONT_STEPS.length - 1) { fontIdx++; applyFont(); } };
+  applyFont();
 
   // ---------- armazenamento ----------
   function loadDB() {

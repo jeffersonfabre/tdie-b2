@@ -2,7 +2,7 @@
 
 Sistema de estudo focado em tirar **B2 (86+ pts)** no Teste Diagnóstico em Idiomas Estrangeiros (ICA 37-324/2023) da UNIFA.
 
-**Versão:** 1.0.0 · Desenvolvido por **DomDevLabs**
+**Versão:** 1.0.2 · Desenvolvido por **DomDevLabs**
 
 ## Como funciona
 1. **Cadastro** com nome + PIN (local, no navegador).
