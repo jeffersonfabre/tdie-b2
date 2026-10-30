@@ -3,7 +3,7 @@
    Todo o progresso fica no navegador (localStorage), com backup exportável. */
 (() => {
   "use strict";
-  const VERSION = "1.0.2";
+  const VERSION = "1.1.0";
   const KEY = "rumo_b2_tdie";
   const TARGET = 86;              // B2 começa em 86 pontos (ICA 37-324, 4.2.3)
   const MASTERY = 0.75;           // tópico considerado dominado
@@ -14,6 +14,7 @@
 
   const T = Object.fromEntries(TOPICS.map(t => [t.id, t]));
   const P = Object.fromEntries(PASSAGES.map(p => [p.id, p]));
+  const AUDIOS = PASSAGES.filter(p => p.type === "listen");
   const Q = Object.fromEntries(QUESTIONS.map(q => [q.id, q]));
   const app = document.getElementById("app");
   document.getElementById("ver").textContent = VERSION;
@@ -161,21 +162,62 @@
     return interleave(out.slice(0, SIM_SIZE));
   }
 
-  // ---------- áudio (leitura em voz sintetizada, en-US) ----------
-  let voice = null;
-  function pickVoice() {
-    const vs = speechSynthesis.getVoices();
-    voice = vs.find(v => /en-US/i.test(v.lang) && /Google|Natural|Samantha|Aria|Jenny/i.test(v.name))
-      || vs.find(v => /en-US/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+  // ---------- áudio (voz sintetizada do aparelho) ----------
+  const HAS_TTS = "speechSynthesis" in window;
+  const AUDIO_KEY = "rumo_b2_audio";
+  let audioPref = { accent: "US", rate: 0.9 };
+  try { audioPref = Object.assign(audioPref, JSON.parse(localStorage.getItem(AUDIO_KEY)) || {}); } catch {}
+  const saveAudioPref = () => { try { localStorage.setItem(AUDIO_KEY, JSON.stringify(audioPref)); } catch {} };
+  if (HAS_TTS) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; }
+
+  const SPK_RE = /\b(Man|Woman|Waiter|Receptionist|Interviewer|Speaker):\s*/g;
+  // Quebra o texto em frases, guardando quem fala (para vozes diferentes no diálogo)
+  function segments(text) {
+    const turns = []; let spk = null, last = 0, m;
+    SPK_RE.lastIndex = 0;
+    while ((m = SPK_RE.exec(text))) { if (m.index > last) turns.push([spk, text.slice(last, m.index)]); spk = m[1]; last = SPK_RE.lastIndex; }
+    turns.push([spk, text.slice(last)]);
+    const order = [], out = [];
+    turns.forEach(([s, t]) => {
+      t = t.trim(); if (!t) return;
+      if (s && !order.includes(s)) order.push(s);
+      (t.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [t]).forEach(x => {
+        x = x.trim(); if (x) out.push({ spk: s, who: s ? order.indexOf(s) : 0, text: x });
+      });
+    });
+    return out;
   }
-  if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-  function speak(text, btn) {
-    if (!("speechSynthesis" in window)) { toast("Seu navegador não tem áudio. Use Chrome ou Edge."); return; }
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/^(Man|Woman|Interviewer|Speaker):/gm, "").replace(/ (Man|Woman|Interviewer|Speaker):/g, ". "));
-    u.lang = "en-US"; u.rate = 0.92; if (voice) u.voice = voice;
-    if (btn) { btn.disabled = true; u.onend = u.onerror = () => { btn.disabled = false; }; }
-    speechSynthesis.speak(u);
+  const BAD_VOICE = /(novelty|whisper|bells|bad news|boing|bubbles|cellos|jester|organ|trinoids|zarvox|albert|bahh|fred|junior|ralph|superstar|wobble|grandma|grandpa|rocko|shelley|eddy|flo|reed|sandy)/i;
+  function voicePair() {
+    const all = HAS_TTS ? speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang) && !BAD_VOICE.test(v.name)) : [];
+    const want = audioPref.accent === "GB" ? /en[-_]GB/i : /en[-_]US/i;
+    let list = all.filter(v => want.test(v.lang)); if (!list.length) list = all;
+    const score = v => (/(natural|neural|premium|enhanced|google)/i.test(v.name) ? 2 : 0) +
+      (/(samantha|daniel|aria|jenny|guy|serena|libby|ryan|sonia|ava|evan|zoe|nathan|kate|oliver)/i.test(v.name) ? 1 : 0);
+    list = list.slice().sort((a, b) => score(b) - score(a));
+    const a = list[0] || null, b = list.find(v => v !== a) || null;
+    return { lang: audioPref.accent === "GB" ? "en-GB" : "en-US", v: [a, b || a], same: !b };
+  }
+  let playToken = 0;
+  function stopAudio() { playToken++; if (HAS_TTS) speechSynthesis.cancel(); }
+  function playSegs(segs, opt = {}) {
+    if (!HAS_TTS) { toast("Este navegador não tem voz. Use Safari, Chrome ou Edge."); opt.onEnd && opt.onEnd(); return; }
+    stopAudio(); const tok = playToken;
+    const vp = voicePair(), rate = opt.rate || audioPref.rate;
+    const from = opt.from || 0, to = opt.to == null ? segs.length - 1 : opt.to;
+    for (let i = from; i <= to; i++) {
+      const s = segs[i], u = new SpeechSynthesisUtterance(s.text);
+      u.lang = vp.lang; u.rate = rate;
+      const v = vp.v[s.who % 2]; if (v) u.voice = v;
+      if (vp.same && s.who % 2) u.pitch = 0.75; // só uma voz no aparelho: muda o tom do 2º personagem
+      u.onstart = () => { if (tok === playToken && opt.onSeg) opt.onSeg(i); };
+      if (i === to) u.onend = u.onerror = () => { if (tok === playToken && opt.onEnd) opt.onEnd(); };
+      speechSynthesis.speak(u);
+    }
+  }
+  function speak(text, btn, rate) {
+    if (btn) btn.disabled = true;
+    playSegs(segments(text), { rate, onEnd: () => { if (btn) btn.disabled = false; } });
   }
 
   // ---------- telas ----------
@@ -187,11 +229,12 @@
     nav.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.go === on));
   }
   function route(name, arg) {
-    speechSynthesis && speechSynthesis.cancel && speechSynthesis.cancel();
+    stopAudio();
     window.scrollTo(0, 0);
     if (!db.current && name !== "login") name = "login";
-    setNav(name);
+    setNav(name === "audioItem" ? "audio" : name);
     ({ login: viewLogin, home: viewHome, topics: viewTopics, account: viewAccount,
+       audio: viewAudio, audioItem: viewAudioItem,
        placement: () => runQuiz("placement"), study: () => runQuiz("study", arg),
        sim: () => runQuiz("sim") })[name](arg);
   }
@@ -264,6 +307,11 @@
         <button class="btn big" data-act="study">Começar sessão</button>
       </div>
       <div class="card">
+        <h3>🎧 Treino de ouvido</h3>
+        <p class="muted">${AUDIOS.length} áudios A2, B1 e B2 com perguntas, transcrição e ditado. ${audioDoneCount(p)} concluídos.</p>
+        <button class="btn big ghost" data-act="audio">Abrir áudios</button>
+      </div>
+      <div class="card">
         <h3>Seu foco agora</h3>
         ${weakest.map(t => topicRow(p, t)).join("")}
       </div>
@@ -285,6 +333,7 @@
       </div>`;
     app.querySelector('[data-act="study"]').onclick = () => route("study");
     app.querySelector('[data-act="sim"]').onclick = () => route("sim");
+    app.querySelector('[data-act="audio"]').onclick = () => route("audio");
     app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => route("study", b.dataset.topic));
   }
   const fmtDate = d => d.split("-").reverse().join("/");
@@ -307,6 +356,197 @@
       ${groups.map(g => `<div class="card"><h2><span class="lvl ${g}">${g}</span></h2>
         ${TOPICS.filter(t => t.lv === g).map(t => topicRow(p, t, true)).join("")}</div>`).join("")}`;
     app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => route("study", b.dataset.topic));
+  }
+
+  // ---------- aba Áudio: treino de ouvido por nível ----------
+  const LV_DESC = { A2: "Frases simples e situações do dia a dia", B1: "Recados, instruções e conversas de trabalho", B2: "Notícias, palestras e discussões" };
+  const cleanTitle = t => t.replace(/^Áudio [^—]*—\s*/, "");
+  const audioQs = id => QUESTIONS.filter(q => q.p === id);
+  const audioSecs = a => Math.max(10, Math.round(a.text.split(/\s+/).length / (2.5 * audioPref.rate)));
+  function audioRec(p, id) { p.audio = p.audio || {}; return p.audio[id] || null; }
+  const audioDone = (p, a) => { const r = audioRec(p, a.id); return !!r && r.best / audioQs(a.id).length >= 0.67; };
+  const audioDoneCount = p => AUDIOS.filter(a => audioDone(p, a)).length;
+
+  function audioSettingsHtml() {
+    const seg = (key, opts) => `<div class="seg" data-set="${key}">${opts.map(([v, l]) =>
+      `<button data-v="${v}" class="${String(audioPref[key]) === String(v) ? "on" : ""}">${l}</button>`).join("")}</div>`;
+    return `<div class="aset">
+      <div><label>Sotaque</label>${seg("accent", [["US", "Americano"], ["GB", "Britânico"]])}</div>
+      <div><label>Velocidade</label>${seg("rate", [[0.75, "0,75×"], [0.9, "0,9×"], [1, "1× normal"], [1.1, "1,1×"]])}</div>
+    </div>`;
+  }
+  function bindAudioSettings(onChange) {
+    app.querySelectorAll(".seg").forEach(g => g.querySelectorAll("button").forEach(b => b.onclick = () => {
+      const key = g.dataset.set; audioPref[key] = key === "rate" ? +b.dataset.v : b.dataset.v; saveAudioPref();
+      app.querySelectorAll(`.seg[data-set="${key}"] button`).forEach(x => x.classList.toggle("on", x.dataset.v === b.dataset.v));
+      stopAudio(); onChange && onChange();
+    }));
+  }
+
+  function viewAudio() {
+    const p = me();
+    app.innerHTML = `
+      <div class="card"><h1>🎧 Treino de ouvido</h1>
+        <p class="muted">Áudios curtos por nível, no estilo da compreensão auditiva do TDIE. Em cada um, siga os 4 passos:</p>
+        <ol class="list small">
+          <li><b>Ouça sem ler</b> e responda às perguntas.</li>
+          <li><b>Repita as frases</b> em que você travou (⏮ 🔁 ⏭).</li>
+          <li><b>Leia a transcrição ouvindo.</b> Toque numa frase para repetir só ela.</li>
+          <li><b>Ditado:</b> escreva o que ouviu, frase por frase. É o treino que mais afina o ouvido.</li>
+        </ol>
+        <p class="small muted">Comece em 0,9× e suba para 1× quando acertar tudo. Alterne os sotaques: a prova pode ter os dois.</p>
+        ${audioSettingsHtml()}
+      </div>
+      ${["A2", "B1", "B2"].map(lv => {
+        const items = AUDIOS.filter(a => a.lv === lv);
+        const pct = Math.round(100 * items.reduce((s, a) => { const r = audioRec(p, a.id); return s + (r ? r.best / audioQs(a.id).length : 0); }, 0) / items.length);
+        return `<div class="card">
+          <div class="topic-head"><h2 style="margin:0"><span class="lvl ${lv}">${lv}</span></h2><span class="small muted">${items.filter(a => audioDone(p, a)).length}/${items.length} concluídos</span></div>
+          <p class="small muted" style="margin:6px 0">${LV_DESC[lv]}</p>
+          <div class="progress thin" style="margin-bottom:8px"><span style="width:${pct}%"></span></div>
+          ${items.map(a => audioRow(p, a)).join("")}
+        </div>`;
+      }).join("")}`;
+    bindAudioSettings(() => viewAudio());
+    app.querySelectorAll("[data-audio]").forEach(b => b.onclick = () => route("audioItem", b.dataset.audio));
+  }
+  function audioRow(p, a) {
+    const r = audioRec(p, a.id), n = audioQs(a.id).length;
+    const chip = !r ? `<span class="chip">novo</span>` : audioDone(p, a) ? `<span class="chip ok">✓ ${r.best}/${n}</span>` : `<span class="chip focus">${r.best}/${n}</span>`;
+    return `<button class="audio-row" data-audio="${a.id}">
+      <span class="ar-ic" aria-hidden="true">🎧</span>
+      <span class="ar-txt"><b>${esc(cleanTitle(a.title))}</b><small>${n} perguntas · ~${audioSecs(a)}s${r ? ` · ouvido ${r.plays || 0}×` : ""}</small></span>
+      ${chip}</button>`;
+  }
+
+  function viewAudioItem(id) {
+    const p = me(), a = P[id]; if (!a) return route("audio");
+    const qs = audioQs(id), segs = segments(a.text), voc = (window.AUDIO_VOCAB || {})[id] || [];
+    p.audio = p.audio || {};
+    const rec = () => (p.audio[id] = p.audio[id] || { plays: 0, best: 0, last: null });
+    let cur = 0, dCur = 0;
+    app.innerHTML = `
+      <button class="back" id="back">← Todos os áudios</button>
+      <div class="card">
+        <div class="q-meta"><span><span class="lvl ${a.lv}">${a.lv}</span> <b style="color:var(--ink)">${esc(cleanTitle(a.title))}</b></span><span id="plays"></span></div>
+        <div class="prow"><button class="btn big" id="pAll">▶ Ouvir tudo</button><button class="btn big ghost" id="pStop" aria-label="Parar">■</button></div>
+        <div class="sent-nav">
+          <button class="btn ghost" id="sPrev" aria-label="Frase anterior">⏮</button>
+          <button class="btn ghost" id="sRep">🔁 Frase <span id="sIdx"></span></button>
+          <button class="btn ghost" id="sNext" aria-label="Próxima frase">⏭</button>
+        </div>
+        ${audioSettingsHtml()}
+      </div>
+      <div class="card"><h3>1. Responda ouvindo</h3>
+        <p class="small muted">Não abra a transcrição ainda. Ouça quantas vezes precisar.</p>
+        <div id="aq"></div><div id="ascore"></div></div>
+      <div class="card">
+        <div class="topic-head"><h3 style="margin:0">2. Transcrição</h3><button class="btn ghost sm" id="tgl">Mostrar</button></div>
+        <p class="small muted" style="margin-top:6px">Toque numa frase para ouvir só ela. A frase que está tocando fica destacada.</p>
+        <div id="tr" class="transcript" hidden>${segs.map((s, i) => `<span class="seg-s" data-i="${i}">${s.spk ? `<b>${esc(s.spk)}:</b> ` : ""}${esc(s.text)}</span>`).join(" ")}</div>
+      </div>
+      ${voc.length ? `<div class="card"><h3>Palavras-chave</h3><p class="small muted">Toque para ouvir a pronúncia.</p>
+        <div class="vocab">${voc.map(([en, pt]) => `<button class="voc" data-say="${esc(en)}"><b>${esc(en)}</b><span>${esc(pt)}</span></button>`).join("")}</div></div>` : ""}
+      <div class="card"><h3>3. Ditado</h3>
+        <p class="small muted">Ouça a frase e escreva o que entendeu. Pontuação e maiúsculas não contam. Escreva os números por extenso (twelve, four fifteen).</p>
+        <div class="row"><button class="btn ghost" id="dPlay">▶ Frase <span id="dIdx"></span></button><button class="btn ghost" id="dSlow">🐢 Devagar</button></div>
+        <textarea id="dIn" rows="3" placeholder="Escreva aqui o que ouviu..." autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" style="margin-top:10px"></textarea>
+        <div class="row" style="margin-top:10px"><button class="btn" id="dChk">Conferir</button><button class="btn ghost" id="dNext">Próxima frase →</button></div>
+        <div id="dRes"></div>
+      </div>`;
+
+    const $ = s => document.getElementById(s);
+    const showPlays = () => { $("plays").textContent = `ouvido ${(p.audio[id] || {}).plays || 0}×`; };
+    const showIdx = () => { $("sIdx").textContent = `${cur + 1}/${segs.length}`; $("dIdx").textContent = `${dCur + 1}/${segs.length}`; };
+    const mark = i => app.querySelectorAll(".seg-s").forEach(el => el.classList.toggle("on", +el.dataset.i === i));
+    const playing = on => { $("pAll").textContent = on ? "⏸ Tocando..." : "▶ Ouvir tudo"; };
+    showPlays(); showIdx();
+
+    $("back").onclick = () => route("audio");
+    $("pAll").onclick = () => {
+      rec().plays++; save(); showPlays(); playing(true);
+      playSegs(segs, { onSeg: i => { cur = i; showIdx(); mark(i); }, onEnd: () => { playing(false); mark(-1); } });
+    };
+    $("pStop").onclick = () => { stopAudio(); playing(false); mark(-1); };
+    const playOne = (i, rate) => { cur = i; showIdx(); playing(false); playSegs(segs, { from: i, to: i, rate, onSeg: mark, onEnd: () => mark(-1) }); };
+    $("sRep").onclick = () => playOne(cur);
+    $("sPrev").onclick = () => playOne(Math.max(0, cur - 1));
+    $("sNext").onclick = () => playOne(Math.min(segs.length - 1, cur + 1));
+    bindAudioSettings();
+
+    $("tgl").onclick = () => { const t = $("tr"); t.hidden = !t.hidden; $("tgl").textContent = t.hidden ? "Mostrar" : "Ocultar"; };
+    app.querySelectorAll(".seg-s").forEach(el => el.onclick = () => playOne(+el.dataset.i));
+    app.querySelectorAll(".voc").forEach(b => b.onclick = () => playSegs([{ who: 0, text: b.dataset.say }], { rate: 0.85 }));
+
+    // perguntas
+    function renderQs() {
+      const answers = {};
+      const letters = "ABCD";
+      $("ascore").innerHTML = "";
+      $("aq").innerHTML = qs.map((q, n) => {
+        const order = shuffle(q.o.map((_, k) => k));
+        return `<div class="aq-item" data-q="${n}"><div class="q-text" style="font-size:1rem">${n + 1}. ${esc(q.q)}</div>
+          <div class="opts">${order.map((k, j) => `<button class="opt" data-k="${k}"><span class="let">${letters[j]}</span><span>${esc(q.o[k])}</span></button>`).join("")}</div>
+          <div class="fb"></div></div>`;
+      }).join("");
+      app.querySelectorAll(".aq-item").forEach(box => {
+        const n = +box.dataset.q, q = qs[n];
+        box.querySelectorAll(".opt").forEach(btn => btn.onclick = () => {
+          const k = +btn.dataset.k, ok = k === q.a;
+          box.querySelectorAll(".opt").forEach(b => { b.disabled = true; if (+b.dataset.k === q.a) b.classList.add("right"); else if (b === btn) b.classList.add("wrong"); });
+          box.querySelector(".fb").innerHTML = `<div class="feedback ${ok ? "ok" : "no"}"><b>${ok ? "Isso!" : "Quase."}</b> ${esc(q.e)}</div>`;
+          answers[n] = ok;
+          updateTopic(p, "listening", ok); updateCard(p, q.id, ok); p.xp += ok ? 10 : 2; p.answered++;
+          if (Object.keys(answers).length === qs.length) {
+            const right = Object.values(answers).filter(Boolean).length, r = rec();
+            r.last = right; r.best = Math.max(r.best, right); bumpStreak(p);
+            const all = right === qs.length;
+            $("ascore").innerHTML = `<div class="feedback ${all ? "ok" : right / qs.length >= 0.67 ? "ok" : "no"}" style="margin-top:16px">
+              <b>${right}/${qs.length} acertos.</b> ${all ? (audioPref.rate < 1 ? "Perfeito! Agora tente em 1× normal." : "Perfeito! Faça o ditado para fixar.") : "Abra a transcrição, ouça de novo as frases e refaça."}
+              <div style="margin-top:10px"><button class="btn ghost sm" id="redoQ">Refazer perguntas</button></div></div>`;
+            $("redoQ").onclick = renderQs;
+          }
+          save();
+        });
+      });
+    }
+    renderQs();
+
+    // ditado
+    const CONTR = { "won't": "will not", "can't": "can not", "cannot": "can not", "it's": "it is", "that's": "that is", "there's": "there is", "here's": "here is", "what's": "what is", "he's": "he is", "she's": "she is", "let's": "let us" };
+    function words(s) {
+      return s.toLowerCase().replace(/[’‘`]/g, "'").replace(/-/g, " ").replace(/[^a-z0-9' ]+/g, " ")
+        .split(/\s+/).filter(Boolean).flatMap(w => {
+          if (CONTR[w]) return CONTR[w].split(" ");
+          const m = w.match(/^(\w+)(n't|'re|'m|'ll|'ve|'d)$/);
+          if (m) return [m[1], { "n't": "not", "'re": "are", "'m": "am", "'ll": "will", "'ve": "have", "'d": "would" }[m[2]]];
+          return [w.replace(/'/g, "")];
+        });
+    }
+    function check() {
+      const target = segs[dCur].text, tw = words(target), uw = words($("dIn").value);
+      if (!uw.length) return toast("Escreva o que ouviu primeiro.");
+      // alinhamento por maior subsequência comum (LCS)
+      const L = Array.from({ length: tw.length + 1 }, () => new Array(uw.length + 1).fill(0));
+      for (let i = tw.length - 1; i >= 0; i--) for (let j = uw.length - 1; j >= 0; j--)
+        L[i][j] = tw[i] === uw[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+      const hit = new Array(tw.length).fill(false);
+      for (let i = 0, j = 0; i < tw.length && j < uw.length;) {
+        if (tw[i] === uw[j]) { hit[i] = true; i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+      }
+      const n = hit.filter(Boolean).length, pct = Math.round(100 * n / tw.length);
+      $("dRes").innerHTML = `<div class="feedback ${pct >= 90 ? "ok" : "no"}" style="margin-top:12px">
+        <b>${pct >= 90 ? "Excelente!" : pct >= 60 ? "Bom, falta pouco." : "Ouça de novo, devagar."}</b> ${n} de ${tw.length} palavras (${pct}%).
+        <div class="dict">${tw.map((w, i) => `<span class="${hit[i] ? "w-ok" : "w-miss"}">${esc(w)}</span>`).join(" ")}</div>
+        <div class="small muted">Frase original: ${segs[dCur].spk ? `<b>${esc(segs[dCur].spk)}:</b> ` : ""}${esc(target)}</div></div>`;
+      p.xp += pct >= 90 ? 5 : 1; save();
+    }
+    const dPlay = rate => playSegs(segs, { from: dCur, to: dCur, rate });
+    $("dPlay").onclick = () => dPlay();
+    $("dSlow").onclick = () => dPlay(0.7);
+    $("dChk").onclick = check;
+    $("dIn").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); check(); } });
+    $("dNext").onclick = () => { dCur = (dCur + 1) % segs.length; showIdx(); $("dIn").value = ""; $("dRes").innerHTML = ""; dPlay(); $("dIn").focus(); };
   }
 
   function viewAccount() {
@@ -402,7 +642,7 @@
         const used = st.plays[ps.id] || 0;
         if (mode !== "study" && used >= 2) return toast("Limite de 2 audições, como na prova.");
         st.plays[ps.id] = used + 1; document.getElementById("plays").textContent = playsLabel(ps.id);
-        speak(ps.text, play);
+        speak(ps.text, play, mode === "study" ? null : 0.95);
       };
       app.querySelectorAll(".opt").forEach(b => b.onclick = () => answer(q, +b.dataset.k, b, showFb, ps));
     }
@@ -434,7 +674,7 @@
           ${!ok ? `<p class="small muted" style="margin:8px 0 0">Ela volta no fim da sessão e amanhã na revisão.</p>` : ""}</div>${next}`;
       } else fb.innerHTML = next;
       document.getElementById("nextQ").onclick = () => {
-        speechSynthesis && speechSynthesis.cancel && speechSynthesis.cancel();
+        stopAudio();
         st.i++; st.i < st.list.length ? showQ() : finish();
       };
       if (!showFb) setTimeout(() => { const n = document.getElementById("nextQ"); n && n.focus(); }, 0);

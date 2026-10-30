@@ -42,11 +42,11 @@ window.PASSAGES = [
     text: "For decades, sleep was considered a passive state in which the brain simply rested. Recent studies suggest the opposite. During deep sleep, the brain appears to replay experiences from the day, strengthening some connections and weakening others. This process seems to help transform short-term memories into long-term ones. In one experiment, volunteers who slept after learning a list of words remembered significantly more of them the next day than those who stayed awake for the same period. Scientists caution, though, that sleep cannot replace study: it consolidates what has been learned, but it does not create knowledge from nothing. Students who cut their sleep to study longer may therefore be undermining the very learning they are trying to achieve." },
   { id: "l1", lv: "B1", type: "listen", title: "Áudio 1 — Recado na secretária",
     text: "Hi, this is Paula from the travel department. I'm calling about your trip to Brasília. Unfortunately, the flight on Tuesday morning was cancelled, so I've booked you on the four fifteen flight in the afternoon instead. Your hotel reservation is the same, but you'll arrive after check-in closes, so I've asked them to keep the room for you. Please call me back before Monday to confirm. My extension is two three eight." },
-  { id: "l2", lv: "B2", type: "listen", title: "Áudio 2 — Briefing",
+  { id: "l2", lv: "B2", type: "listen", title: "Áudio 2 — Briefing da inspeção",
     text: "Good morning, everyone. Before we start, a quick update. The inspection that was planned for Thursday has been postponed, because the team from headquarters couldn't get transport. It will probably take place next week, although the exact date hasn't been confirmed yet. In the meantime, I'd like each section to review its inventory reports. Any differences between the system and the physical stock must be explained in writing, not just corrected. Last time, several sections simply changed the numbers, and that caused problems during the audit." },
-  { id: "l3", lv: "B1", type: "listen", title: "Áudio 3 — Diálogo",
+  { id: "l3", lv: "B1", type: "listen", title: "Áudio 3 — Convite para o churrasco",
     text: "Man: Are you coming to the barbecue on Saturday? Woman: I'd love to, but I promised my sister I'd help her move. She's changing apartments. Man: Oh, that's a pity. Could you come later in the evening? Woman: Maybe. If we finish early, I'll call you. But knowing my sister, she's got a lot of boxes. Man: Fine. We'll probably be there until ten." },
-  { id: "l4", lv: "B2", type: "listen", title: "Áudio 4 — Entrevista",
+  { id: "l4", lv: "B2", type: "listen", title: "Áudio 4 — Entrevista: mudança de carreira",
     text: "Interviewer: You switched careers at forty. What made you take that risk? Speaker: Honestly, it didn't feel like a risk at the time. I'd been unhappy in finance for years, but I kept telling myself it was temporary. What changed was a health problem. Nothing serious in the end, but it made me realize I'd been postponing my life. I took a course in software development at night, and for almost two years I kept my old job. So it wasn't a dramatic jump. It was more like crossing a river stone by stone." }
 ];
 
@@ -228,3 +228,85 @@ window.QUESTIONS = [
   { id: "ls9", t: "listening", lv: "B2", p: "l4", q: "What made the speaker change careers?", o: ["He was fired", "A health problem made him rethink", "He won money", "His family asked him"], a: 1, e: "'What changed was a health problem... it made me realize I'd been postponing my life.'" },
   { id: "ls10", t: "listening", lv: "B2", p: "l4", q: "'Crossing a river stone by stone' means the change was:", o: ["Sudden and risky", "Gradual", "Impossible", "Dangerous"], a: 1, e: "Ele manteve o emprego por quase dois anos enquanto estudava → mudança gradual, não um salto." }
 ];
+
+// ===== v1.1.0 — biblioteca de áudios por nível (aba Áudio)
+window.PASSAGES.push(
+  { id: "la1", lv: "A2", type: "listen", title: "Aviso no aeroporto",
+    text: "Attention, please. This is an announcement for passengers on flight two-oh-five to Recife. The flight is now boarding at gate twelve. Passengers with small children should go to the gate first. Please have your boarding pass and your ID ready. Thank you, and have a nice flight." },
+  { id: "la2", lv: "A2", type: "listen", title: "Apresentação pessoal",
+    text: "Hi, my name is Carla. I'm twenty-eight years old and I work as a nurse in a hospital in Brasília. I usually start work at seven in the morning. On weekends, I like to go to the park with my dog and read books. I don't like watching TV very much." },
+  { id: "la3", lv: "A2", type: "listen", title: "No restaurante",
+    text: "Waiter: Good evening. Are you ready to order? Woman: Yes. I'd like the chicken with rice, please. Waiter: Anything to drink? Woman: Just water, please. No ice. Waiter: Sure. And for dessert? Woman: No dessert, thanks. I'm on a diet." },
+  { id: "la4", lv: "A2", type: "listen", title: "Previsão do tempo",
+    text: "Good morning. Here is the weather for today. In the morning, it will be sunny and warm, about twenty-five degrees. In the afternoon, clouds will come from the south, and it will probably rain after four o'clock. So don't forget your umbrella. Tomorrow will be cold and windy." },
+  { id: "lb1", lv: "B1", type: "listen", title: "Aula de primeiros socorros",
+    text: "Good afternoon, everyone, and welcome to the first-aid course. Today we'll focus on what to do when someone faints. First, check that the area is safe. Then, lay the person on their back and raise their legs slightly. Don't give them anything to drink until they're fully awake. If they don't wake up within one minute, call an ambulance immediately." },
+  { id: "lb2", lv: "B1", type: "listen", title: "Reclamação no hotel",
+    text: "Receptionist: Good evening. How can I help you? Man: Hi. I'm in room three-fourteen. The air conditioning isn't working, and it's really hot in there. Receptionist: I'm so sorry about that. I can send someone from maintenance, but it might take an hour. Or I can move you to another room right now. Man: I'd rather change rooms. I have an early meeting tomorrow. Receptionist: Of course. Here's the key to room four-oh-two. It's on the fourth floor." },
+  { id: "lb3", lv: "B1", type: "listen", title: "Recado do chefe",
+    text: "Hi, it's Marcos. Listen, I won't be in the office tomorrow because I have to go to a meeting at headquarters. Could you do me a favor and send the monthly report to the finance department before noon? It's in the shared folder. Oh, and if anyone from the supplier calls, tell them I'll get back to them on Friday." },
+  { id: "lc1", lv: "B2", type: "listen", title: "Palestra: dinheiro e felicidade",
+    text: "There's a common belief that money can't buy happiness. Research suggests the truth is a little more nuanced. Up to a certain point, a higher income does make people happier, mainly because it reduces stress about basic needs such as housing and health care. Beyond that point, however, the effect becomes much smaller. Interestingly, studies have found that people who spend money on experiences, like travel or courses, tend to feel more satisfied than those who spend it on objects. One explanation is that experiences become part of our identity, while objects simply lose their novelty." },
+  { id: "lc2", lv: "B2", type: "listen", title: "Notícia: ponte fechada",
+    text: "Authorities have announced that the city's main bridge will be closed for repairs starting next Monday. The work, which was originally scheduled for last year, had been postponed due to budget problems. Drivers are advised to use the ring road, although delays of up to forty minutes are expected during rush hour. Public transport will run more frequently, and the city council has said that bus fares will be reduced by half while the bridge remains closed." },
+  { id: "lc3", lv: "B2", type: "listen", title: "Reunião de equipe",
+    text: "Woman: So, where are we with the new software? Man: Well, the installation is finished, but to be honest, most people aren't using it yet. Woman: Why not? We spent a fortune on it. Man: I think the problem is training. People had a one-hour session, and that clearly wasn't enough. They keep going back to the old spreadsheets because they feel more comfortable with them. Woman: Fine. Then let's organise smaller workshops, by department, and set a deadline for switching off the old system. Man: That makes sense. Without a deadline, nothing will change." }
+);
+
+window.QUESTIONS.push(
+  // A2
+  { id: "la1a", t: "listening", lv: "A2", p: "la1", q: "Where is flight 205 going?", o: ["Recife", "Rio de Janeiro", "Salvador", "Brasília"], a: 0, e: "'...flight two-oh-five to Recife.'" },
+  { id: "la1b", t: "listening", lv: "A2", p: "la1", q: "Which gate is the flight boarding at?", o: ["Gate 2", "Gate 20", "Gate 12", "Gate 5"], a: 2, e: "'...boarding at gate twelve.' Cuidado: twelve (12) x twenty (20)." },
+  { id: "la1c", t: "listening", lv: "A2", p: "la1", q: "Who should go to the gate first?", o: ["Elderly passengers", "Passengers with small children", "First-class passengers", "The crew"], a: 1, e: "'Passengers with small children should go to the gate first.'" },
+  { id: "la2a", t: "listening", lv: "A2", p: "la2", q: "What is Carla's job?", o: ["Teacher", "Doctor", "Nurse", "Pilot"], a: 2, e: "'I work as a nurse in a hospital.' Nurse = enfermeira." },
+  { id: "la2b", t: "listening", lv: "A2", p: "la2", q: "What does she do on weekends?", o: ["She works at the hospital", "She goes to the park with her dog and reads", "She watches TV", "She visits her family"], a: 1, e: "'On weekends, I like to go to the park with my dog and read books.'" },
+  { id: "la2c", t: "listening", lv: "A2", p: "la2", q: "What time does she usually start work?", o: ["At 7 a.m.", "At 8 a.m.", "At 11 a.m.", "At 7 p.m."], a: 0, e: "'I usually start work at seven in the morning.'" },
+  { id: "la3a", t: "listening", lv: "A2", p: "la3", q: "What does the woman order to eat?", o: ["Fish with rice", "Chicken with rice", "Chicken with salad", "Pasta"], a: 1, e: "'I'd like the chicken with rice, please.'" },
+  { id: "la3b", t: "listening", lv: "A2", p: "la3", q: "What does she want to drink?", o: ["Water with ice", "Orange juice", "Water without ice", "A soda"], a: 2, e: "'Just water, please. No ice.'" },
+  { id: "la3c", t: "listening", lv: "A2", p: "la3", q: "Why doesn't she want dessert?", o: ["She is on a diet", "She isn't hungry", "It's too expensive", "She is in a hurry"], a: 0, e: "'I'm on a diet.' On a diet = de dieta." },
+  { id: "la4a", t: "listening", lv: "A2", p: "la4", q: "What will the weather be like in the morning?", o: ["Cold and windy", "Sunny and warm", "Rainy", "Cloudy"], a: 1, e: "'In the morning, it will be sunny and warm.'" },
+  { id: "la4b", t: "listening", lv: "A2", p: "la4", q: "When will it probably rain?", o: ["In the morning", "At 2 p.m.", "After 4 p.m.", "Tomorrow"], a: 2, e: "'...it will probably rain after four o'clock.'" },
+  { id: "la4c", t: "listening", lv: "A2", p: "la4", q: "What will the weather be like tomorrow?", o: ["Hot and sunny", "Warm and cloudy", "Rainy and warm", "Cold and windy"], a: 3, e: "'Tomorrow will be cold and windy.' Windy = com vento." },
+  // B1
+  { id: "lb1a", t: "listening", lv: "B1", p: "lb1", q: "What is the main topic of today's class?", o: ["Treating burns", "What to do when someone faints", "Broken bones", "Heart attacks"], a: 1, e: "'Today we'll focus on what to do when someone faints.' Faint = desmaiar." },
+  { id: "lb1b", t: "listening", lv: "B1", p: "lb1", q: "What should you do with the person's legs?", o: ["Keep them flat", "Bend them", "Raise them slightly", "Massage them"], a: 2, e: "'...lay the person on their back and raise their legs slightly.'" },
+  { id: "lb1c", t: "listening", lv: "B1", p: "lb1", q: "When should you call an ambulance?", o: ["Immediately, before anything else", "If the person doesn't wake up within one minute", "Only if the person asks", "After giving the person water"], a: 1, e: "'If they don't wake up within one minute, call an ambulance immediately.'" },
+  { id: "lb1d", t: "listening", lv: "B1", p: "lb1", q: "What should you NOT do?", o: ["Give them a drink before they are fully awake", "Check that the area is safe", "Lay the person on their back", "Raise their legs"], a: 0, e: "'Don't give them anything to drink until they're fully awake.'" },
+  { id: "lb2a", t: "listening", lv: "B1", p: "lb2", q: "What is the problem with the room?", o: ["The TV is broken", "The air conditioning isn't working", "It's too noisy", "The shower is cold"], a: 1, e: "'The air conditioning isn't working, and it's really hot in there.'" },
+  { id: "lb2b", t: "listening", lv: "B1", p: "lb2", q: "Why does the man prefer to change rooms?", o: ["He has an early meeting", "He doesn't like the view", "Maintenance is too expensive", "His room is too small"], a: 0, e: "'I'd rather change rooms. I have an early meeting tomorrow.' I'd rather = eu prefiro." },
+  { id: "lb2c", t: "listening", lv: "B1", p: "lb2", q: "What is his new room number?", o: ["314", "204", "402", "412"], a: 2, e: "'...room four-oh-two' = 402. 314 era o quarto antigo." },
+  { id: "lb3a", t: "listening", lv: "B1", p: "lb3", q: "Why won't Marcos be in the office tomorrow?", o: ["He's sick", "He's on holiday", "He has a meeting at headquarters", "He's visiting a supplier"], a: 2, e: "'...I have to go to a meeting at headquarters.'" },
+  { id: "lb3b", t: "listening", lv: "B1", p: "lb3", q: "When must the report be sent?", o: ["Before noon", "By Friday", "Tomorrow evening", "Next week"], a: 0, e: "'...send the monthly report to the finance department before noon.' Friday é o retorno ao fornecedor (distrator)." },
+  { id: "lb3c", t: "listening", lv: "B1", p: "lb3", q: "What should the listener tell the supplier?", o: ["To send an email", "That Marcos will call back on Friday", "To call headquarters", "That the report is ready"], a: 1, e: "'...tell them I'll get back to them on Friday.' Get back to = retornar o contato." },
+  // B2
+  { id: "lc1a", t: "listening", lv: "B2", p: "lc1", q: "What is the speaker's main point?", o: ["Money always makes people happier", "Money has no effect on happiness", "The link between money and happiness is more complex than people think", "Rich people are less happy"], a: 2, e: "'Research suggests the truth is a little more nuanced.' Nuanced = cheio de nuances, mais complexo." },
+  { id: "lc1b", t: "listening", lv: "B2", p: "lc1", q: "Why does a higher income make people happier up to a point?", o: ["It allows more travel", "It reduces stress about basic needs", "It makes people more popular", "It lets people work less"], a: 1, e: "'...mainly because it reduces stress about basic needs such as housing and health care.'" },
+  { id: "lc1c", t: "listening", lv: "B2", p: "lc1", q: "According to the studies, who tends to feel more satisfied?", o: ["People who buy expensive objects", "People who save all their money", "People who earn the most", "People who spend money on experiences"], a: 3, e: "'...people who spend money on experiences... tend to feel more satisfied.'" },
+  { id: "lc1d", t: "listening", lv: "B2", p: "lc1", q: "In the last sentence, 'novelty' is closest in meaning to:", o: ["Novidade (o fato de ser novo)", "Valor", "Utilidade", "Preço"], a: 0, e: "Objetos perdem a graça de serem novos: novelty = novidade." },
+  { id: "lc2a", t: "listening", lv: "B2", p: "lc2", q: "Why had the work been postponed?", o: ["Bad weather", "Budget problems", "A strike", "Heavy traffic"], a: 1, e: "'...had been postponed due to budget problems.' Budget = orçamento." },
+  { id: "lc2b", t: "listening", lv: "B2", p: "lc2", q: "What are drivers advised to do?", o: ["Use the ring road", "Travel at night", "Take the ferry", "Stay at home"], a: 0, e: "'Drivers are advised to use the ring road.' Ring road = anel viário." },
+  { id: "lc2c", t: "listening", lv: "B2", p: "lc2", q: "What will happen to bus fares?", o: ["They will double", "They won't change", "They will be cut by half", "Buses will be free"], a: 2, e: "'...bus fares will be reduced by half.' Fare = tarifa." },
+  { id: "lc2d", t: "listening", lv: "B2", p: "lc2", q: "How long can delays be during rush hour?", o: ["Up to 14 minutes", "Up to 40 minutes", "Up to 4 hours", "About an hour"], a: 1, e: "'...delays of up to forty minutes.' Atenção: forty (40) x fourteen (14) — no 'fourteen' a sílaba forte é o final." },
+  { id: "lc3a", t: "listening", lv: "B2", p: "lc3", q: "What is the problem with the new software?", o: ["It was too expensive to install", "Most people aren't using it yet", "It doesn't work", "The installation isn't finished"], a: 1, e: "'...the installation is finished, but... most people aren't using it yet.'" },
+  { id: "lc3b", t: "listening", lv: "B2", p: "lc3", q: "According to the man, what is the cause?", o: ["The software is slow", "People don't have computers", "The training wasn't enough", "The old system is faster"], a: 2, e: "'I think the problem is training... that clearly wasn't enough.'" },
+  { id: "lc3c", t: "listening", lv: "B2", p: "lc3", q: "What does the woman decide?", o: ["Return the software", "Hire new staff", "Keep both systems forever", "Organise smaller workshops by department and set a deadline"], a: 3, e: "'...let's organise smaller workshops, by department, and set a deadline for switching off the old system.'" },
+  { id: "lc3d", t: "listening", lv: "B2", p: "lc3", q: "Why does the man agree with the deadline?", o: ["Without it, nothing will change", "It will save money", "The director demanded it", "The staff asked for it"], a: 0, e: "'Without a deadline, nothing will change.'" }
+);
+
+// Palavras-chave de cada áudio (inglês → português)
+window.AUDIO_VOCAB = {
+  l1: [["cancelled", "cancelado"], ["I've booked you", "reservei para você"], ["check-in closes", "o check-in fecha"], ["extension", "ramal"]],
+  l2: [["postponed", "adiado"], ["headquarters", "sede / comando"], ["in the meantime", "enquanto isso"], ["stock", "estoque"]],
+  l3: [["I promised", "eu prometi"], ["move", "fazer mudança"], ["that's a pity", "que pena"], ["boxes", "caixas"]],
+  l4: [["switched careers", "mudou de carreira"], ["take that risk", "correr esse risco"], ["postponing", "adiando"], ["stone by stone", "pedra por pedra"]],
+  la1: [["boarding", "embarcando"], ["gate", "portão"], ["boarding pass", "cartão de embarque"], ["ID", "documento de identidade"]],
+  la2: [["nurse", "enfermeira"], ["usually", "geralmente"], ["weekends", "fins de semana"], ["very much", "muito"]],
+  la3: [["ready to order", "pronta para pedir"], ["anything to drink?", "algo para beber?"], ["no ice", "sem gelo"], ["on a diet", "de dieta"]],
+  la4: [["weather", "tempo (clima)"], ["warm", "quente, agradável"], ["clouds", "nuvens"], ["windy", "com vento"]],
+  lb1: [["faints", "desmaia"], ["lay", "deitar (alguém)"], ["raise", "levantar"], ["fully awake", "totalmente acordado"]],
+  lb2: [["air conditioning", "ar-condicionado"], ["maintenance", "manutenção"], ["I'd rather", "eu prefiro"], ["floor", "andar"]],
+  lb3: [["headquarters", "sede / comando"], ["do me a favor", "me faz um favor"], ["shared folder", "pasta compartilhada"], ["get back to them", "retornar o contato"]],
+  lc1: [["nuanced", "cheio de nuances"], ["income", "renda"], ["beyond that point", "além desse ponto"], ["novelty", "novidade"]],
+  lc2: [["closed for repairs", "fechada para obras"], ["ring road", "anel viário"], ["rush hour", "hora do rush"], ["fares", "tarifas"]],
+  lc3: [["to be honest", "para ser sincero"], ["a fortune", "uma fortuna"], ["workshops", "oficinas, treinamentos"], ["switching off", "desligar"]]
+};
