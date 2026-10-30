@@ -2,7 +2,7 @@
 
 Sistema de estudo focado em tirar **B2 (86+ pts)** no Teste Diagnóstico em Idiomas Estrangeiros (ICA 37-324/2023) da UNIFA.
 
-**Versão:** 1.1.0 · Desenvolvido por **DomDevLabs**
+**Versão:** 1.2.0 · Desenvolvido por **DomDevLabs**
 
 ## Como funciona
 1. **Cadastro** com nome + PIN (local, no navegador).
@@ -12,11 +12,13 @@ Sistema de estudo focado em tirar **B2 (86+ pts)** no Teste Diagnóstico em Idio
 5. **Simulado TDIE**: 30 questões, múltipla escolha, leitura e áudio (2 audições), nota 0–100 com as faixas da ICA.
 6. **Barra de progresso** até o B2, sequência de dias e XP.
 7. **Aba Áudio**: 14 áudios A2/B1/B2 com perguntas, frase a frase, transcrição, palavras-chave, ditado, sotaque americano/britânico e 4 velocidades.
-8. **Backup**: baixar arquivo ou copiar código para continuar em outro aparelho.
+8. **Teoria e revisão** por tópico: regras, 5 exemplos com áudio, pegadinhas, dica de prova e revisão rápida de 3 questões.
+9. **Backup**: baixar arquivo ou copiar código para continuar em outro aparelho.
 
 ## Arquivos
 - `index.html` · `styles.css` · `app.js` — app estático, sem build.
-- `questions.js` — banco de questões inéditas (135), 19 tópicos A2–B2 + leitura e áudio.
+- `questions.js` — banco de questões inéditas (169), 19 tópicos A2–B2 + leitura e áudio.
+- `theory.js` — teoria dos 21 tópicos.
 
 Os áudios usam a voz em inglês do próprio navegador (melhor no Chrome/Edge).
 

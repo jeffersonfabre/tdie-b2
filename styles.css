@@ -92,6 +92,21 @@ label{display:block;font-weight:600;font-size:.9rem;margin:10px 0 4px}
 .fontctl button:disabled{opacity:.35;cursor:default}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:10px;font-size:.9rem;z-index:20}
 .btn.sm{padding:7px 12px;font-size:.85rem}
+.formula{margin-top:10px;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;font:600 .9rem/1.5 ui-monospace,Menlo,monospace;color:#fff}
+.rules{padding-left:20px;margin:6px 0 0}
+.rules li{margin:8px 0}
+.examples{display:grid;gap:8px;margin-top:8px}
+.ex{display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:12px;font:inherit;cursor:pointer}
+.ex:hover,.ex.on{border-color:var(--blue)}
+.ex-n{flex:0 0 26px;height:26px;border-radius:50%;background:var(--sky);color:var(--blue);font:700 .85rem Sora;display:grid;place-items:center}
+.ex-body{flex:1;display:flex;flex-direction:column;gap:3px}
+.ex-en{font-weight:500}
+.ex-pt{color:var(--muted);font-size:.9rem}
+.ex-play{opacity:.6}
+mark{background:#ffe7b8;color:#0f1b2d;border-radius:4px;padding:0 3px}
+.card.warn{border-left:4px solid var(--amber)}
+.card.tdie{border-left:4px solid var(--orange);background:linear-gradient(90deg,rgba(242,140,40,.08),transparent)}
+.theory-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .prow{display:flex;gap:10px}
 .prow #pAll{flex:1}
 .prow #pStop{width:64px;flex:0 0 64px}

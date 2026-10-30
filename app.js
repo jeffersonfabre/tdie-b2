@@ -3,7 +3,7 @@
    Todo o progresso fica no navegador (localStorage), com backup exportável. */
 (() => {
   "use strict";
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const KEY = "rumo_b2_tdie";
   const TARGET = 86;              // B2 começa em 86 pontos (ICA 37-324, 4.2.3)
   const MASTERY = 0.75;           // tópico considerado dominado
@@ -232,9 +232,9 @@
     stopAudio();
     window.scrollTo(0, 0);
     if (!db.current && name !== "login") name = "login";
-    setNav(name === "audioItem" ? "audio" : name);
+    setNav(name === "audioItem" ? "audio" : name === "theory" ? "topics" : name);
     ({ login: viewLogin, home: viewHome, topics: viewTopics, account: viewAccount,
-       audio: viewAudio, audioItem: viewAudioItem,
+       audio: viewAudio, audioItem: viewAudioItem, theory: viewTheory,
        placement: () => runQuiz("placement"), study: () => runQuiz("study", arg),
        sim: () => runQuiz("sim") })[name](arg);
   }
@@ -335,6 +335,7 @@
     app.querySelector('[data-act="sim"]').onclick = () => route("sim");
     app.querySelector('[data-act="audio"]').onclick = () => route("audio");
     app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => route("study", b.dataset.topic));
+    app.querySelectorAll("[data-theory]").forEach(b => b.onclick = () => route("theory", b.dataset.theory));
   }
   const fmtDate = d => d.split("-").reverse().join("/");
   function topicRow(p, t, withTip) {
@@ -344,7 +345,7 @@
       <div class="topic-head"><div><span class="lvl ${t.lv}">${t.lv}</span> <b>${esc(t.name)}</b></div>${chip}</div>
       <div class="progress thin"><span style="width:${pct}%"></span></div>
       ${withTip ? `<div class="small muted">${esc(t.tip)}</div>` : ""}
-      <div><button class="btn ghost" style="padding:7px 12px;font-size:.85rem" data-topic="${t.id}">Praticar (${pct}%)</button></div>
+      <div class="row" style="gap:8px"><button class="btn sm" data-theory="${t.id}">📖 Teoria e revisão</button><button class="btn ghost sm" data-topic="${t.id}">Praticar (${pct}%)</button></div>
     </div>`;
   }
 
@@ -356,6 +357,99 @@
       ${groups.map(g => `<div class="card"><h2><span class="lvl ${g}">${g}</span></h2>
         ${TOPICS.filter(t => t.lv === g).map(t => topicRow(p, t, true)).join("")}</div>`).join("")}`;
     app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => route("study", b.dataset.topic));
+    app.querySelectorAll("[data-theory]").forEach(b => b.onclick = () => route("theory", b.dataset.theory));
+  }
+
+  // ---------- teoria e revisão por tópico ----------
+  const hl = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<mark>$1</mark>");
+  const plain = s => s.replace(/\*\*/g, "");
+  function viewTheory(tid) {
+    const p = me(), t = T[tid], th = (window.THEORY || {})[tid];
+    if (!t || !th) return route("topics");
+    const idx = TOPICS.findIndex(x => x.id === tid), next = TOPICS[(idx + 1) % TOPICS.length];
+    const pct = Math.round(p.topics[tid].m * 100);
+    app.innerHTML = `
+      <button class="back" id="back">← Tópicos</button>
+      <div class="card hero">
+        <div class="prog-label"><span><span class="lvl ${t.lv}">${t.lv}</span></span><span>Domínio: ${pct}%</span></div>
+        <h1 style="margin-top:6px">${esc(t.name)}</h1>
+        <p style="color:#dbe8ff">${esc(th.intro)}</p>
+        <div class="formula">${esc(th.form)}</div>
+        <div class="progress thin" style="margin-top:12px"><span style="width:${pct}%"></span></div>
+      </div>
+      <div class="card"><h3>📌 Regras</h3><ul class="rules">${th.rules.map(r => `<li>${r}</li>`).join("")}</ul></div>
+      <div class="card"><h3>💬 5 exemplos</h3><p class="small muted">Toque num exemplo para ouvir a pronúncia.</p>
+        <div class="examples">${th.ex.map(([en, pt], i) => `
+          <button class="ex" data-ex="${i}"><span class="ex-n">${i + 1}</span>
+            <span class="ex-body"><span class="ex-en">${hl(en)}</span><span class="ex-pt">${esc(pt)}</span></span><span class="ex-play" aria-hidden="true">🔊</span>
+          </button>`).join("")}</div>
+      </div>
+      <div class="card warn"><h3>⚠️ Pegadinhas</h3><ul class="rules">${th.traps.map(r => `<li>${r}</li>`).join("")}</ul></div>
+      <div class="card tdie"><h3>🎯 Na hora da prova</h3><p style="margin:0">${esc(th.tdie)}</p></div>
+      <div class="card"><div class="topic-head"><h3 style="margin:0">✅ Revisão rápida</h3><span class="small muted" id="rqInfo"></span></div>
+        <p class="small muted" style="margin-top:6px">3 questões deste tópico, começando pelas que você errou. Conta para a revisão espaçada.</p>
+        <div id="rq"></div></div>
+      <div class="row">
+        <button class="btn big" id="practice">Sessão só deste tópico</button>
+        <button class="btn big ghost" id="nextT">Próximo: ${esc(next.name)} →</button>
+      </div>`;
+    document.getElementById("back").onclick = () => route("topics");
+    document.getElementById("practice").onclick = () => route("study", tid);
+    document.getElementById("nextT").onclick = () => route("theory", next.id);
+    app.querySelectorAll(".ex").forEach(b => b.onclick = () => {
+      const en = plain(th.ex[+b.dataset.ex][0]);
+      app.querySelectorAll(".ex").forEach(x => x.classList.remove("on")); b.classList.add("on");
+      speak(en, null, 0.9);
+    });
+    renderReview();
+
+    function pickReview() {
+      const pool = QUESTIONS.filter(q => q.t === tid);
+      const rank = q => { const c = p.cards[q.id]; return !c ? 1 : c.box === 0 ? 0 : c.due <= today() ? 0.5 : 2 + c.box; };
+      if (pool.some(q => q.p)) {
+        // leitura/áudio: um texto inteiro com suas perguntas
+        const ps = shuffle([...new Set(pool.map(q => q.p))]).sort((a, b) =>
+          Math.min(...pool.filter(q => q.p === a).map(rank)) - Math.min(...pool.filter(q => q.p === b).map(rank)))[0];
+        return pool.filter(q => q.p === ps).slice(0, 3);
+      }
+      return shuffle(pool).sort((a, b) => rank(a) - rank(b)).slice(0, 3);
+    }
+    function renderReview() {
+      const qs = pickReview(), ans = {}, letters = "ABCD";
+      const ps = qs[0] && qs[0].p ? P[qs[0].p] : null;
+      document.getElementById("rqInfo").textContent = `${qs.length} questões`;
+      const box = document.getElementById("rq");
+      box.innerHTML = `
+        ${ps && ps.type === "read" ? `<div class="passage"><h4>${esc(ps.title)}</h4>${esc(ps.text)}</div>` : ""}
+        ${ps && ps.type === "listen" ? `<div class="audio"><button class="btn" id="rqPlay">▶ Ouvir</button><div class="small"><b>${esc(cleanTitle(ps.title))}</b><br>Ouça quantas vezes quiser</div></div>` : ""}
+        ${qs.map((q, n) => {
+          const order = shuffle(q.o.map((_, k) => k));
+          return `<div class="aq-item" data-q="${n}"><div class="q-text" style="font-size:1rem">${n + 1}. ${esc(q.q)}</div>
+            <div class="opts">${order.map((k, j) => `<button class="opt" data-k="${k}"><span class="let">${letters[j]}</span><span>${esc(q.o[k])}</span></button>`).join("")}</div>
+            <div class="fb"></div></div>`;
+        }).join("")}
+        <div id="rqScore"></div>`;
+      const play = document.getElementById("rqPlay");
+      if (play) play.onclick = () => speak(ps.text, play);
+      box.querySelectorAll(".aq-item").forEach(item => {
+        const n = +item.dataset.q, q = qs[n];
+        item.querySelectorAll(".opt").forEach(btn => btn.onclick = () => {
+          const ok = +btn.dataset.k === q.a;
+          item.querySelectorAll(".opt").forEach(b => { b.disabled = true; if (+b.dataset.k === q.a) b.classList.add("right"); else if (b === btn) b.classList.add("wrong"); });
+          item.querySelector(".fb").innerHTML = `<div class="feedback ${ok ? "ok" : "no"}"><b>${ok ? "Isso!" : "Quase."}</b> ${esc(q.e)}</div>`;
+          ans[n] = ok; updateTopic(p, tid, ok); updateCard(p, q.id, ok); p.xp += ok ? 10 : 2; p.answered++;
+          if (Object.keys(ans).length === qs.length) {
+            const right = Object.values(ans).filter(Boolean).length; bumpStreak(p);
+            const npct = Math.round(p.topics[tid].m * 100);
+            document.getElementById("rqScore").innerHTML = `<div class="feedback ${right === qs.length ? "ok" : "no"}" style="margin-top:14px">
+              <b>${right}/${qs.length}.</b> ${right === qs.length ? "Mandou bem!" : "Releia as regras e os exemplos acima e tente outra rodada."} Domínio do tópico agora: <b>${npct}%</b>.
+              <div style="margin-top:10px"><button class="btn ghost sm" id="rqAgain">Nova revisão</button></div></div>`;
+            document.getElementById("rqAgain").onclick = renderReview;
+          }
+          save();
+        });
+      });
+    }
   }
 
   // ---------- aba Áudio: treino de ouvido por nível ----------
@@ -748,7 +842,13 @@
           <div class="progress"><span style="width:${Math.min(100, Math.round(100 * sc / TARGET))}%"></span></div>
           <small>${Math.min(100, Math.round(100 * sc / TARGET))}% do caminho até o B2</small>
         </div>
+        ${(() => {
+          const wt = [...new Set(st.res.filter(r => !r.ok).map(r => r.q.t))];
+          return wt.length ? `<div class="card"><h3>📖 Revise a teoria do que você errou</h3>
+            <div class="theory-links">${wt.map(t => `<button class="btn ghost sm" data-theory="${t}">${esc(T[t].name)}</button>`).join("")}</div></div>` : "";
+        })()}
         <div class="row"><button class="btn big" id="again">Mais uma sessão</button><button class="btn big ghost" id="toHome">Painel</button></div>`;
+      app.querySelectorAll("[data-theory]").forEach(b => b.onclick = () => route("theory", b.dataset.theory));
       document.getElementById("again").onclick = () => route("study", topic);
       document.getElementById("toHome").onclick = () => route("home");
     }
